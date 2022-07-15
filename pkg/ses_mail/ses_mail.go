@@ -5,19 +5,21 @@ import (
 	"net/smtp"
 )
 
-// struct Host holds host location/auth information for smtp
+// struct Host holds host data for sending SMTP through SES.
 type Host struct {
-	Username string // Host username
-	Password string // Host password
-	Hostname string // Host name/address (ex. smtp.gmail.com)
+	Username string
+	Password string
+	Host     string
+	Port     int
+	Sender   string
 }
 
 func (h Host) PlainAuth() smtp.Auth {
-	return smtp.PlainAuth("", h.Username, h.Password, h.Hostname)
+	return smtp.PlainAuth("", h.Username, h.Password, h.Host)
 }
 
 func (h Host) Address() string {
-	return fmt.Sprintf("%s:%d", h.Hostname, 587)
+	return fmt.Sprintf("%s:%d", h.Host, h.Port)
 }
 
 func NewAuthMessage(sendTo, authCode string) []byte {
@@ -35,7 +37,7 @@ func SendMessage(sendFrom Host, sendTo string, msg []byte) error {
 	auth := sendFrom.PlainAuth()
 	target := []string{sendTo}
 	addr := sendFrom.Address()
-	err := smtp.SendMail(addr, auth, "jnichols2719@protonmail.com", target, msg)
+	err := smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
 	if err != nil {
 		return err
 	}
