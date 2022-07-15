@@ -1,4 +1,4 @@
-package ses_mail
+package authmail
 
 import (
 	"auth/pkg/authcode"
