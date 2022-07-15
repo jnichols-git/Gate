@@ -14,14 +14,17 @@ type Host struct {
 	Sender   string
 }
 
+// Generate a PlainAuth to use with smtp.SendMail using host info
 func (h Host) PlainAuth() smtp.Auth {
 	return smtp.PlainAuth("", h.Username, h.Password, h.Host)
 }
 
+// Generate an address for smtp.SendMail
 func (h Host) Address() string {
 	return fmt.Sprintf("%s:%d", h.Host, h.Port)
 }
 
+// Generate a new authentication message given a target email and authentication code.
 func NewAuthMessage(sendTo, authCode string) []byte {
 	msg := fmt.Sprintf(
 		"To: %s\r\n"+
@@ -33,6 +36,7 @@ func NewAuthMessage(sendTo, authCode string) []byte {
 	return []byte(msg)
 }
 
+// Use smtp to send a message through the target SES host
 func SendMessage(sendFrom Host, sendTo string, msg []byte) error {
 	auth := sendFrom.PlainAuth()
 	target := []string{sendTo}
