@@ -1,6 +1,7 @@
 package ses_mail
 
 import (
+	"auth/pkg/authcode"
 	"fmt"
 	"net/smtp"
 )
@@ -25,13 +26,14 @@ func (h Host) Address() string {
 }
 
 // Generate a new authentication message given a target email and authentication code.
-func NewAuthMessage(sendTo, authCode string) []byte {
+func NewAuthMessage(sendTo string, authCode *authcode.AuthCode) []byte {
 	msg := fmt.Sprintf(
 		"To: %s\r\n"+
 			"Subject: Authentication Code\r\n"+
 			"\r\n"+
-			"Your authentication code is %s\r\n",
-		sendTo, authCode,
+			"Your authentication code is %s.\n"+
+			"This code will expire in 1 minute.\r\n",
+		sendTo, authCode.Code,
 	)
 	return []byte(msg)
 }
