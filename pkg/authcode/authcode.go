@@ -48,7 +48,7 @@ func ValidateAuthCode(forUser, code string) bool {
 		delete(activeCodes, forUser)
 		return true
 	} else {
-		fmt.Printf("Invalid: code equality %t, expiry %t", storedCode.Code == code, storedCode.Expires.After(time.Now()))
+		fmt.Printf("Invalid: code equality %t, expired %t\n", storedCode.Code == code, !storedCode.Expires.After(time.Now()))
 		delete(activeCodes, forUser)
 		return false
 	}
