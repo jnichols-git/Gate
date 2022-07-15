@@ -1,0 +1,7 @@
+{
+    "secret": {
+        "env_uname": "SES_USERNAME",
+        "env_pword": "SES_PASSWORD",
+        "env_host": "SES_ENDPOINT"
+    }
+}
