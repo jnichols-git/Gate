@@ -5,7 +5,6 @@ import (
 	"auth/pkg/authjwt"
 	"auth/pkg/authmail"
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -27,9 +26,8 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("Please enter authentication token: ")
 	token, _ := reader.ReadString('\n')
-	if strings.Trim(token, "\r\n") != "" {
-		jwt := authjwt.UnmarshalJWT(token)
-		valid := authjwt.VerifySignature(jwt, secret)
+	if token = strings.Trim(token, "\r\n"); token != "" {
+		jwt, valid, _ := authjwt.Verify(token, secret)
 		if valid {
 			fmt.Printf("Authentication valid. Welcome, %s\n", jwt.Body.ForUser)
 			return
@@ -40,7 +38,7 @@ func main() {
 	email = strings.Trim(email, "\r\n")
 	fmt.Printf("Sending authentication code to %s\n", email)
 	code := authcode.NewAuthCode(email)
-	msg := authmail.NewAuthMessage(email, code)
+	msg := authmail.NewAuthMessage(email, code.Code)
 	authmail.SendMessage(host, email, msg)
 	fmt.Printf("Please enter authentication code: ")
 	c, _ := reader.ReadString('\n')
@@ -54,7 +52,9 @@ func main() {
 	}
 	fmt.Println("Your validation token is below. Please present on your next visit.")
 	newToken := authjwt.NewJWT(email, "user")
-	newToken.Sign(secret)
-	bytes, _ := json.Marshal(newToken)
-	fmt.Println(string(bytes))
+	output, err := authjwt.Export(newToken, secret)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(output)
 }

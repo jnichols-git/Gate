@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type AuthCode struct {
+type authorizationCode struct {
 	ForUser string
 	Code    string
 	Created time.Time
@@ -14,7 +14,7 @@ type AuthCode struct {
 	Expired bool
 }
 
-var activeCodes map[string]*AuthCode = make(map[string]*AuthCode)
+var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCode)
 
 var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
@@ -26,9 +26,10 @@ func genCode(ct int) string {
 	return string(seq)
 }
 
-func NewAuthCode(forUser string) *AuthCode {
+// Create a new authorization code for a given user
+func NewAuthCode(forUser string) *authorizationCode {
 	now := time.Now()
-	newCode := &AuthCode{
+	newCode := &authorizationCode{
 		ForUser: forUser,
 		Code:    genCode(6),
 		Created: now,
@@ -39,6 +40,7 @@ func NewAuthCode(forUser string) *AuthCode {
 	return newCode
 }
 
+// Validate an authorization code
 func ValidateAuthCode(forUser, code string) bool {
 	storedCode, ok := activeCodes[forUser]
 	if !ok {
