@@ -51,7 +51,7 @@ func main() {
 		return
 	}
 	fmt.Println("Your validation token is below. Please present on your next visit.")
-	newToken := authjwt.NewJWT(email, "user")
+	newToken := authjwt.NewJWT(email, map[string]interface{}{"user-type": "user"})
 	output, err := authjwt.Export(newToken, secret)
 	if err != nil {
 		panic(err)

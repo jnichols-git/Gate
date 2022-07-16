@@ -17,11 +17,11 @@ type JWTHeader struct {
 
 // JWTBody: Token claims. All are registered except access, which is private.
 type JWTBody struct {
-	Issuer  string `json:"iss"`
-	ForUser string `json:"sub"`
-	Access  string `json:"access"`
-	Created int64  `json:"iat"`
-	Expires int64  `json:"exp"`
+	Issuer  string                 `json:"iss"`
+	ForUser string                 `json:"sub"`
+	Access  map[string]interface{} `json:"access"`
+	Created int64                  `json:"iat"`
+	Expires int64                  `json:"exp"`
 }
 
 // JSON Web Token structure combining the above.
@@ -31,7 +31,7 @@ type JSONWebToken struct {
 }
 
 // Create a new JWT based on a user email and access tag
-func NewJWT(user, access string) *JSONWebToken {
+func NewJWT(user string, access map[string]interface{}) *JSONWebToken {
 	return &JSONWebToken{
 		JWTHeader{
 			Algorithm: "sha256",
@@ -51,10 +51,7 @@ func NewJWT(user, access string) *JSONWebToken {
 func Export(t *JSONWebToken, secret []byte) (string, error) {
 	h := hmac.New(sha256.New, secret)
 	// Marshal and encode the JWT header/body separately
-	head, err := json.Marshal(t.Header)
-	if err != nil {
-		return "", err
-	}
+	head, _ := json.Marshal(t.Header)
 	headStr := base64.RawURLEncoding.EncodeToString(head)
 	body, err := json.Marshal(t.Body)
 	if err != nil {
@@ -93,10 +90,7 @@ func Verify(token string, secret []byte) (*JSONWebToken, bool, error) {
 		return nil, false, err
 	}
 	// Re-export the resulting jwt; should result in the exact same output
-	expected, err := Export(jwt, secret)
-	if err != nil {
-		return nil, false, err
-	}
+	expected, _ := Export(jwt, secret)
 	// Return verification eval result and new token
 	expired := jwt.Body.Expires < time.Now().Unix()
 	return jwt, token == expected && !expired, nil

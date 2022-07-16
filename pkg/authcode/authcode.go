@@ -1,7 +1,6 @@
 package authcode
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 )
@@ -11,7 +10,6 @@ type authorizationCode struct {
 	Code    string
 	Created time.Time
 	Expires time.Time
-	Expired bool
 }
 
 var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCode)
@@ -34,7 +32,6 @@ func NewAuthCode(forUser string) *authorizationCode {
 		Code:    genCode(6),
 		Created: now,
 		Expires: now.Add(time.Minute),
-		Expired: false,
 	}
 	activeCodes[forUser] = newCode
 	return newCode
@@ -50,7 +47,6 @@ func ValidateAuthCode(forUser, code string) bool {
 		delete(activeCodes, forUser)
 		return true
 	} else {
-		fmt.Printf("Invalid: code equality %t, expired %t\n", storedCode.Code == code, !storedCode.Expires.After(time.Now()))
 		delete(activeCodes, forUser)
 		return false
 	}
