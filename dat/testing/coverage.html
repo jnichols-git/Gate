@@ -58,6 +58,8 @@
 				
 				<option value="file1">auth/pkg/authjwt/authjwt.go (100.0%)</option>
 				
+				<option value="file2">auth/pkg/authmail/authmail.go (100.0%)</option>
+				
 				</select>
 			</div>
 			<div id="legend">
@@ -222,6 +224,54 @@ func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span clas
         expired := jwt.Body.Expires &lt; time.Now().Unix()
         return jwt, token == expected &amp;&amp; !expired, nil</span>
 }
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package authmail
+
+import (
+        "fmt"
+        "net/smtp"
+)
+
+// struct Host holds host data for sending SMTP through SES.
+type Host struct {
+        Username string
+        Password string
+        Host     string
+        Port     int
+        Sender   string
+}
+
+// Generate a PlainAuth to use with smtp.SendMail using host info
+func (h Host) plainAuth() smtp.Auth <span class="cov8" title="1">{
+        return smtp.PlainAuth("", h.Username, h.Password, h.Host)
+}</span>
+
+// Generate an address for smtp.SendMail
+func (h Host) address() string <span class="cov8" title="1">{
+        return fmt.Sprintf("%s:%d", h.Host, h.Port)
+}</span>
+
+// Generate a new authentication message given a target email and authentication code.
+func NewAuthMessage(sendTo string, authCode string) []byte <span class="cov8" title="1">{
+        msg := fmt.Sprintf(
+                "To: %s\r\n"+
+                        "Subject: Authentication Code\r\n"+
+                        "\r\n"+
+                        "Your authentication code is %s.\n"+
+                        "This code will expire in 1 minute.\r\n",
+                sendTo, authCode,
+        )
+        return []byte(msg)
+}</span>
+
+// Use smtp to send a message through the target SES host
+func SendMessage(sendFrom Host, sendTo string, msg []byte) <span class="cov8" title="1">{
+        auth := sendFrom.plainAuth()
+        target := []string{sendTo}
+        addr := sendFrom.address()
+        smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
+}</span>
 </pre>
 		
 		</div>
