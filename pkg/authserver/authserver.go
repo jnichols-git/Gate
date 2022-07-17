@@ -47,27 +47,42 @@ func WriteResponse(w http.ResponseWriter, code int, msg string) {
 	w.Write([]byte(msg))
 }
 
+// Request body format for all authentication requests.
 type AuthRequestBody struct {
 	Email string `json:"forUser"`
 	Code  string `json:"authCode"`
 	Token string `json:"authToken"`
 }
 
-func (s *Server) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request) {
-	var body []byte = make([]byte, 0)
+// Read request body.
+// An error here usually indicates a malformed request and should return a 400.
+func ReadRequestBody(out *AuthRequestBody, req *http.Request) error {
 	bodyReader := req.Body
 	body, err := ioutil.ReadAll(bodyReader)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Handle email authentication requests
+func (s *Server) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request) {
+	authReq := AuthRequestBody{}
+	err := ReadRequestBody(&authReq, req)
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't read request body: %v\n", err)
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	authReq := AuthRequestBody{}
-	if err := json.Unmarshal(body, &authReq); err != nil {
-		errMsg := fmt.Sprintf("Request body not properly formatted: %v\n", err)
+	// Also throw a 400 if there's no included email
+	if authReq.Email == "" {
+		errMsg := fmt.Sprintf("forUser is needed for endpoint /mail")
 		WriteResponse(w, http.StatusBadRequest, errMsg)
-		return
 	}
+	// Send an authentication email and write out 200
 	fmt.Printf("Received request to authenticate %s\n", authReq.Email)
 	fmt.Printf("Sending authentication email to %s\n", authReq.Email)
 	code := authcode.NewAuthCode(authReq.Email)
@@ -77,22 +92,21 @@ func (s *Server) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request
 	WriteResponse(w, http.StatusOK, succMsg)
 }
 
+// Handle authentication code requests
 func (s *Server) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Request) {
-	var body []byte = make([]byte, 0)
-	bodyReader := req.Body
-	body, err := ioutil.ReadAll(bodyReader)
+	// Read in body. Send a 400 on failure
+	authReq := AuthRequestBody{}
+	err := ReadRequestBody(&authReq, req)
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't read request body: %v\n", err)
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	authReq := AuthRequestBody{}
-	if err := json.Unmarshal(body, &authReq); err != nil {
-		errMsg := fmt.Sprintf("Request body not properly formatted: %v\n", err)
-		WriteResponse(w, http.StatusBadRequest, errMsg)
-		return
-	}
 	fmt.Printf("Received request to authenticate %s with code %s\n", authReq.Email, authReq.Code)
+	if authReq.Email == "" || authReq.Code == "" {
+		errMsg := fmt.Sprintf("forUser and authCode are needed for endpoint /code")
+		WriteResponse(w, http.StatusBadRequest, errMsg)
+	}
 	valid := authcode.ValidateAuthCode(authReq.Email, authReq.Code)
 	if valid {
 		fmt.Printf("%s authenticated using authentication code\n", authReq.Email)
@@ -106,20 +120,17 @@ func (s *Server) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Request)
 }
 
 func (s *Server) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Request) {
-	// Read request body
-	var body []byte = make([]byte, 0)
-	bodyReader := req.Body
-	body, err := ioutil.ReadAll(bodyReader)
+	// Read in body. Send a 400 on failure
+	authReq := AuthRequestBody{}
+	err := ReadRequestBody(&authReq, req)
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't read request body: %v\n", err)
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	authReq := AuthRequestBody{}
-	if err := json.Unmarshal(body, &authReq); err != nil {
-		errMsg := fmt.Sprintf("Request body not properly formatted: %v\n", err)
+	if authReq.Token == "" {
+		errMsg := fmt.Sprintf("authToken is needed for endpoint /token")
 		WriteResponse(w, http.StatusBadRequest, errMsg)
-		return
 	}
 	// Verify the authToken included with the request
 	token, valid, err := authjwt.Verify(authReq.Token, s.Secret)
