@@ -3,6 +3,7 @@ package main
 import (
 	"auth/pkg/authserver"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -17,7 +18,7 @@ func main() {
 		panic(err)
 	}
 	srv.Start()
-	time.Sleep(time.Minute * 1)
-	srv.Stop()
 	time.Sleep(time.Second * 1)
+	fmt.Println("Stopping server")
+	srv.Stop()
 }

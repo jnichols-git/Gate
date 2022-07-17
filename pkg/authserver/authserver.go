@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 )
 
 // An AServer holds the information needed to fulfill authentication.
@@ -22,6 +23,8 @@ type AuthServer struct {
 	SESHost authmail.Host
 	// Server; not exported, used internally for controlling HTTPS server
 	srv *http.Server
+	// Waitgroup; needed to maintain concurrency with server
+	wg sync.WaitGroup
 }
 
 // Write out an HTTP response with status code 400 (bad request)
@@ -159,22 +162,38 @@ func (s *AuthServer) Start() {
 	fulladdr := fmt.Sprintf("%s:%d", s.Address, s.Port)
 	crt := fmt.Sprintf("./cert/%s.crt", s.Address)
 	key := fmt.Sprintf("./cert/%s.key", s.Address)
-	// Create https.Server
+	// Fill out fields for server that aren't created by default
 	s.srv = &http.Server{
 		Addr:    fulladdr,
 		Handler: nil,
 	}
+	s.wg = sync.WaitGroup{}
 	err := Log("Starting auth server at https://%s.%s", "auth", fulladdr)
 	if err != nil {
 		fmt.Println(err)
 	}
 	go func() {
-		s.srv.ListenAndServeTLS(crt, key)
+		s.wg.Add(1)
+		err := s.srv.ListenAndServeTLS(crt, key)
+		switch err {
+		case http.ErrServerClosed:
+			{
+				Log("Server closed successfully.")
+				break
+			}
+		default:
+			{
+				Log("Server closed due to an unexpected error: %v", err)
+			}
+		}
+		s.wg.Done()
 	}()
 }
 
+// Stop the server. Waits to return until everything closes out.
 func (s *AuthServer) Stop() {
 	Log("Stopping server.")
-	CloseLog()
 	s.srv.Shutdown(context.TODO())
+	s.wg.Wait()
+	CloseLog()
 }

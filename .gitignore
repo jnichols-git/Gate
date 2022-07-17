@@ -16,3 +16,6 @@
 
 # SSL certificates
 cert/
+
+# Logs
+dat/log/*
