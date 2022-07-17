@@ -11,8 +11,8 @@ import (
 	"net/http"
 )
 
-// A Server holds the information needed to fulfill authentication.
-type Server struct {
+// An AServer holds the information needed to fulfill authentication.
+type AuthServer struct {
 	// Server port/address
 	Address string
 	Port    int
@@ -69,7 +69,7 @@ func ReadRequestBody(out *AuthRequestBody, req *http.Request) error {
 }
 
 // Handle email authentication requests
-func (s *Server) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request) {
+func (s *AuthServer) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request) {
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
 	if err != nil {
@@ -82,9 +82,7 @@ func (s *Server) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request
 		errMsg := fmt.Sprintf("forUser is needed for endpoint /mail")
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 	}
-	// Send an authentication email and write out 200
-	fmt.Printf("Received request to authenticate %s\n", authReq.Email)
-	fmt.Printf("Sending authentication email to %s\n", authReq.Email)
+	// Send an authentication email and write out 200=
 	code := authcode.NewAuthCode(authReq.Email)
 	msg := authmail.NewAuthMessage(authReq.Email, code.Code)
 	authmail.SendMessage(s.SESHost, authReq.Email, msg)
@@ -93,7 +91,7 @@ func (s *Server) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request
 }
 
 // Handle authentication code requests
-func (s *Server) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Request) {
+func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Request) {
 	// Read in body. Send a 400 on failure
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
@@ -102,14 +100,13 @@ func (s *Server) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Request)
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	fmt.Printf("Received request to authenticate %s with code %s\n", authReq.Email, authReq.Code)
 	if authReq.Email == "" || authReq.Code == "" {
 		errMsg := fmt.Sprintf("forUser and authCode are needed for endpoint /code")
 		WriteResponse(w, http.StatusBadRequest, errMsg)
+		return
 	}
 	valid := authcode.ValidateAuthCode(authReq.Email, authReq.Code)
 	if valid {
-		fmt.Printf("%s authenticated using authentication code\n", authReq.Email)
 		jwt := authjwt.NewJWT(authReq.Email, map[string]interface{}{"authorized": true})
 		token, _ := authjwt.Export(jwt, s.Secret)
 		WriteResponse(w, http.StatusOK, token)
@@ -119,7 +116,7 @@ func (s *Server) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Request)
 	}
 }
 
-func (s *Server) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Request) {
+func (s *AuthServer) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Request) {
 	// Read in body. Send a 400 on failure
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
@@ -131,6 +128,7 @@ func (s *Server) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Request
 	if authReq.Token == "" {
 		errMsg := fmt.Sprintf("authToken is needed for endpoint /token")
 		WriteResponse(w, http.StatusBadRequest, errMsg)
+		return
 	}
 	// Verify the authToken included with the request
 	token, valid, err := authjwt.Verify(authReq.Token, s.Secret)
@@ -149,7 +147,10 @@ func (s *Server) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Request
 	WriteResponse(w, http.StatusOK, string(outToken))
 }
 
-func (s *Server) Start() {
+func (s *AuthServer) Start() {
+	// Open log
+	OpenLog()
+	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
 	// Test handler
 	http.HandleFunc(fmt.Sprintf("auth.%s/mail", s.Address), s.HandleEmailAuthRequest)
 	http.HandleFunc(fmt.Sprintf("auth.%s/code", s.Address), s.HandleCodeAuthRequest)
@@ -163,11 +164,17 @@ func (s *Server) Start() {
 		Addr:    fulladdr,
 		Handler: nil,
 	}
+	err := Log("Starting auth server at https://%s.%s", "auth", fulladdr)
+	if err != nil {
+		fmt.Println(err)
+	}
 	go func() {
 		s.srv.ListenAndServeTLS(crt, key)
 	}()
 }
 
-func (s *Server) Stop() {
+func (s *AuthServer) Stop() {
+	Log("Stopping server.")
+	CloseLog()
 	s.srv.Shutdown(context.TODO())
 }
