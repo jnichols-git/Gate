@@ -2,4 +2,4 @@ module auth
 
 go 1.13
 
-require golang.org/x/tools v0.1.11 // indirect
+require gopkg.in/yaml.v3 v3.0.1

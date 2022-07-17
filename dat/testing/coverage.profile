@@ -1,13 +1,4 @@
 mode: set
-auth/pkg/authcode/authcode.go:19.29,21.21 2 1
-auth/pkg/authcode/authcode.go:24.2,24.20 1 1
-auth/pkg/authcode/authcode.go:21.21,23.3 1 1
-auth/pkg/authcode/authcode.go:28.53,38.2 4 1
-auth/pkg/authcode/authcode.go:41.50,43.9 2 1
-auth/pkg/authcode/authcode.go:46.2,46.69 1 1
-auth/pkg/authcode/authcode.go:43.9,45.3 1 1
-auth/pkg/authcode/authcode.go:46.69,49.3 2 1
-auth/pkg/authcode/authcode.go:49.8,52.3 2 1
 auth/pkg/authjwt/authjwt.go:34.71,48.2 1 1
 auth/pkg/authjwt/authjwt.go:51.61,57.16 5 1
 auth/pkg/authjwt/authjwt.go:60.2,68.55 4 1
@@ -21,6 +12,15 @@ auth/pkg/authjwt/authjwt.go:77.16,79.3 1 1
 auth/pkg/authjwt/authjwt.go:81.16,83.3 1 1
 auth/pkg/authjwt/authjwt.go:85.16,87.3 1 1
 auth/pkg/authjwt/authjwt.go:89.16,91.3 1 1
+auth/pkg/authcode/authcode.go:19.29,21.21 2 1
+auth/pkg/authcode/authcode.go:24.2,24.20 1 1
+auth/pkg/authcode/authcode.go:21.21,23.3 1 1
+auth/pkg/authcode/authcode.go:28.53,38.2 4 1
+auth/pkg/authcode/authcode.go:41.50,43.9 2 1
+auth/pkg/authcode/authcode.go:46.2,46.69 1 1
+auth/pkg/authcode/authcode.go:43.9,45.3 1 1
+auth/pkg/authcode/authcode.go:46.69,49.3 2 1
+auth/pkg/authcode/authcode.go:49.8,52.3 2 1
 auth/pkg/authmail/authmail.go:18.37,20.2 1 1
 auth/pkg/authmail/authmail.go:23.32,25.2 1 1
 auth/pkg/authmail/authmail.go:28.60,38.2 2 1

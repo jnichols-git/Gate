@@ -1,5 +1,7 @@
+# Testing directory path
 tpath:=./dat/testing
-tlist:=`go list ./...`
+# List of packages to test; -e [package] excludes from testing
+tlist:=`go list ./... | grep -v -e authserver`
 
 make test:
 	go test $(tlist) -coverprofile $(tpath)/coverage.profile
