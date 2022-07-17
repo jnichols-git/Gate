@@ -2,38 +2,31 @@
 
 `authserver` ties the rest of the `auth` packages together as an https-accessible API for user verification.
 
-## Basic authentication flow
+## API Endpoints
 
-For the purposes of specifying the `authserver` authentication pattern, the following key words are defined:
+The `auth` api will be deployed as a subdomain `auth`. Initial setup will provide an API key. For an application
+with domain `domain.com`, requests should be main to `auth.domain.com` using header authorization `x-api-key: [key]`
+as specified below.
 
-- AuthServer: This server running to authenticate users.
-- Application: An external application using AuthServer for user authentication
-- Client: A user that needs to be authenticated to access Application
+### Authentication
 
-### Initial Email Authentication
+Authentication endpoints take a JSON object, defined in `authserver.go` as AuthRequestBody, that has 3 fields:
 
-Initial authentication occurs when a bearer token is not provided or is not verified by AuthServer.
-Application should handle fulfillment of original requests, as this process takes two requests from
-Client. After this process, the client will receive a bearer token that streamlines the authentication
-process.
+- `forUser` (string): email being used to authenticate
+- `authCode` (string): email authentication code
+- `authToken` (string): authentication token from prior email authentication
 
-1. Client sends a request with no authentication and an email to Application
-2. Application sends a request to authenticate the email to AuthServer
-3. Client sends a request with no authentication and a code to Application
-4. Application sends a request to verify the code to AuthServer
-    - If the code is verified, proceed.
-    - Otherwise, Application notifies Client of failed authentication.
-5. Application sends a request for a bearer token to AuthServer
-6. Application sends the bearer token to Client
-7. Application fulfills the Client's original request.
+Endpoints will specify which fields are needed below, and will ignore the other fields; they can safely
+be left empty if they aren't being used.
 
-### JWT Verification
-
-JWT verification occurs when a bearer token is provided. As this can apply to any request, it
-requires no redirects and should only fail when the token expires or is altered.
-
-1. Client sends a request with "Authorization: Bearer A.B.C" and an email to Application
-2. Application sends a request to verify the bearer token to AuthServer
-    - If the token is verified, proceed.
-    - Otherwise, the user must re-authenticate using email.
-3. Application fulfils the Client's original request.
+- POST `/mail`: Sends an authentication code to `forUser`
+    - `200 OK`: Authentication email sent to `forUser`. Does not guarantee delivery.
+    - `400 Bad Request`: Request was poorly-formed; body should provide more information on the error.
+- POST `/code`: Validates `authCode` for `forUser`
+    - `200 OK`:  `authCode` was valid. Body contains a bearer token.
+    - `400 Bad Request`: Request was poorly-formed; body should provide more information on the error.
+    - `401 Unauthorized`: Authorization failed due to incorrect or expired `authCode`.
+- POST `/token`: Validates `authToken`
+    - `200 OK`: `authToken` was valid. Body contains the decoded contents of `authToken`.
+    - `400 Bad Request`: Request was poorly-formed; body should provide more information on the error.
+    - `401 Unauthorized`: Authorization failed due to incorrect or expired `authToken`.
