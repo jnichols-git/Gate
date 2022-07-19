@@ -60,6 +60,12 @@
 				
 				<option value="file2">auth/pkg/authmail/authmail.go (100.0%)</option>
 				
+				<option value="file3">auth/pkg/database/access.go (80.9%)</option>
+				
+				<option value="file4">auth/pkg/database/database.go (79.1%)</option>
+				
+				<option value="file5">auth/pkg/database/hashing.go (78.6%)</option>
+				
 				</select>
 			</div>
 			<div id="legend">
@@ -272,6 +278,336 @@ func SendMessage(sendFrom Host, sendTo string, msg []byte) <span class="cov8" ti
         addr := sendFrom.address()
         smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
 }</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package database
+
+import (
+        badger "github.com/dgraph-io/badger/v3"
+        "github.com/pkg/errors"
+)
+
+// Database "generics"; get/set from collection of badger databases
+
+type DatabaseCollection map[string]*badger.DB
+
+// Open a database at /tmp/{name}. if write == false, NO DATA will be written to disk.
+// Leave write = true unless you're testing.
+func openDatabase(name string, write bool) (*badger.DB, error) <span class="cov8" title="1">{
+        if write </span><span class="cov0" title="0">{
+                return badger.Open(badger.DefaultOptions("./dat/database/" + name))
+        }</span> else<span class="cov8" title="1"> {
+                return badger.Open(badger.DefaultOptions("").WithInMemory(true))
+        }</span>
+}
+
+// Open every DB in a DatabaseCollection. See description for write arg above in openDatabase.
+func (coll DatabaseCollection) opened(write bool) (DatabaseCollection, error) <span class="cov8" title="1">{
+        var err error
+        for name := range coll </span><span class="cov8" title="1">{
+                coll[name], err = openDatabase(name, write)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+        }
+        <span class="cov8" title="1">return coll, nil</span>
+}
+
+func setKey(db *badger.DB, key, value []byte) error <span class="cov8" title="1">{
+        if db == nil </span><span class="cov0" title="0">{
+                return errors.New("Attempted to setKey on a nil database")
+        }</span>
+        <span class="cov8" title="1">if err := db.Update(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
+                err := txn.Set(key, value)
+                if err == badger.ErrConflict </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">if err == badger.ErrTxnTooBig </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">return nil</span>
+        }); err != nil <span class="cov0" title="0">{
+                return err
+        }</span> else<span class="cov8" title="1"> {
+                return nil
+        }</span>
+}
+
+func getKey(db *badger.DB, key []byte) ([]byte, error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov0" title="0">{
+                return nil, errors.New("Attempted to getKey on a nil database")
+        }</span>
+        <span class="cov8" title="1">var val []byte
+        if err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
+                item, err := txn.Get(key)
+                if err != nil </span><span class="cov8" title="1">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">item.Value(func(v []byte) error </span><span class="cov8" title="1">{
+                        val = v
+                        return nil
+                }</span>)
+                <span class="cov8" title="1">return nil</span>
+        }); err != nil <span class="cov8" title="1">{
+                return nil, err
+        }</span> else<span class="cov8" title="1"> {
+                return val, nil
+        }</span>
+}
+
+func keyExists(db *badger.DB, key []byte) (bool, error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov0" title="0">{
+                return false, errors.New("Attempted to getKey on a nil database")
+        }</span>
+        <span class="cov8" title="1">var val bool = false
+        if err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
+                opts := badger.DefaultIteratorOptions
+                opts.PrefetchValues = false
+                it := txn.NewIterator(opts)
+                defer it.Close()
+                for it.Rewind(); it.Valid(); it.Next() </span><span class="cov8" title="1">{
+                        if string(it.Item().Key()) == string(key) </span><span class="cov8" title="1">{
+                                val = true
+                        }</span>
+                }
+                <span class="cov8" title="1">return nil</span>
+        }); err != nil <span class="cov0" title="0">{
+                return false, err
+        }</span> else<span class="cov8" title="1"> {
+                return val, nil
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package database
+
+import (
+        "encoding/json"
+        "fmt"
+
+        "github.com/pkg/errors"
+)
+
+var DATABASE_TESTING bool = true
+
+type UserCred struct {
+        Email        string `json:"email"`
+        Username     string `json:"username"`
+        PasswordHash string `json:"password"`
+        PasswordSalt string `json:"salt"`
+        HashFunc     string `json:"hf"`
+}
+
+type UserPerm map[string]bool
+
+type UserEntry struct {
+        Credentials UserCred `json:"credentials"`
+        Permissions UserPerm `json:"permissions"`
+}
+
+var authDBLayout DatabaseCollection = DatabaseCollection{
+        "users": nil,
+}
+
+func authDBKey(email, username string) []byte <span class="cov8" title="1">{
+        email = stringEncode([]byte(email))
+        username = stringEncode([]byte(username))
+        return []byte(email + "." + username)
+}</span>
+
+func OpenDB() error <span class="cov8" title="1">{
+        var err error
+        authDBLayout, err = authDBLayout.opened(!DATABASE_TESTING)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+func CloseDB() error <span class="cov8" title="1">{
+        for _, db := range authDBLayout </span><span class="cov8" title="1">{
+                err := db.Close()
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+func RegisterUser(email, username, password string, permissions UserPerm) error <span class="cov8" title="1">{
+        // Check to make sure we're not re-registering a user
+        if registered, err := keyExists(authDBLayout["users"], authDBKey(email, username)); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span> else<span class="cov8" title="1"> {
+                if registered </span><span class="cov8" title="1">{
+                        return errors.New("User already registered")
+                }</span>
+        }
+        <span class="cov8" title="1">salt, err := genSalt()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">pwdHash, err := slowHash([]byte(password), salt, "sha512")
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">entry := UserEntry{
+                Credentials: UserCred{
+                        email,
+                        username,
+                        pwdHash,
+                        stringEncode(salt),
+                        "sha512",
+                },
+                Permissions: permissions,
+        }
+        out, err := json.Marshal(entry)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">err = setKey(authDBLayout["users"], authDBKey(email, username), out)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+func ValidateUserCred(email, username, password string) (bool, error) <span class="cov8" title="1">{
+        dbval, err := getKey(authDBLayout["users"], authDBKey(email, username))
+        if err != nil </span><span class="cov8" title="1">{
+                return false, err
+        }</span>
+        <span class="cov8" title="1">entry := UserEntry{}
+        if err := json.Unmarshal(dbval, &amp;entry); err != nil </span><span class="cov0" title="0">{
+                return false, err
+        }</span>
+        <span class="cov8" title="1">salt, _ := stringDecode(entry.Credentials.PasswordSalt)
+        pwdHash, err := slowHash([]byte(password), salt, entry.Credentials.HashFunc)
+        if err != nil </span><span class="cov0" title="0">{
+                return false, err
+        }</span>
+        <span class="cov8" title="1">fmt.Printf("%s:\n%s\n%s\n", username, pwdHash, entry.Credentials.PasswordHash)
+        fmt.Printf("%t, %t\n", username == entry.Credentials.Username, pwdHash == entry.Credentials.PasswordHash)
+        return username == entry.Credentials.Username &amp;&amp; pwdHash == entry.Credentials.PasswordHash, nil</span>
+}
+
+func ChangeUserPassword(email, username, password string, newPassword string) error <span class="cov8" title="1">{
+        // Get current user data. This will fail if the user does not exist.
+        dbval, err := getKey(authDBLayout["users"], authDBKey(email, username))
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+        <span class="cov8" title="1">entry := UserEntry{}
+        if err := json.Unmarshal(dbval, &amp;entry); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        // Need to validate old password to change to a new one.
+        <span class="cov8" title="1">if oldOk, _ := ValidateUserCred(email, username, password); !oldOk </span><span class="cov8" title="1">{
+                return errors.New("Password change failed: old password incorrect")
+        }</span> else <span class="cov8" title="1">{
+        }</span>
+        // Generate password hash
+        <span class="cov8" title="1">salt, err := genSalt()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">pwdHash, err := slowHash([]byte(newPassword), salt, "sha512")
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">entry.Credentials.PasswordHash = pwdHash
+        entry.Credentials.PasswordSalt = stringEncode(salt)
+        // Write out new entry
+        out, err := json.Marshal(entry)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">err = setKey(authDBLayout["users"], authDBKey(email, username), out)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package database
+
+import (
+        "crypto/rand"
+        "crypto/sha512"
+        "encoding/base64"
+        "hash"
+        "time"
+
+        "github.com/pkg/errors"
+)
+
+// stringEncode shorthands for base64.URLEncoding.EncodeToString
+func stringEncode(b []byte) string <span class="cov8" title="1">{
+        return base64.RawURLEncoding.EncodeToString(b)
+}</span>
+
+// stringDecode shorthands base64.URLEncoding.DecodeString
+func stringDecode(s string) ([]byte, error) <span class="cov8" title="1">{
+        return base64.RawURLEncoding.DecodeString(s)
+}</span>
+
+// genSalt returns a 64-bit random byte string
+func genSalt() ([]byte, error) <span class="cov8" title="1">{
+        salt := make([]byte, 64)
+        _, err := rand.Read(salt[:])
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">return salt, nil</span>
+}
+
+const hashRounds int = 65536
+const minHashMS int = 20
+const maxHashMS int = 0
+
+var hfs map[string]func() hash.Hash = map[string]func() hash.Hash{
+        "sha512": sha512.New,
+}
+
+// VERY SLOWLY hash pwd using a named hashFunc supported by auth.database, see hfs above
+// Returns hash, salt, error (if occurs)
+// DO NOT call any other hash function.
+func slowHash(pwd, salt []byte, hashFunc string) (string, error) <span class="cov8" title="1">{
+        // Get hash func. Return error if not supported
+        f, ok := hfs[hashFunc]
+        if !ok </span><span class="cov0" title="0">{
+                return "", errors.Errorf("Hash function %s not supported", hashFunc)
+        }</span>
+        <span class="cov8" title="1">hf := f()
+        pwd_full := append(pwd, salt...)
+        pwd_hash := make([]byte, base64.URLEncoding.EncodedLen(hf.Size()))
+        // Initial hash into pwd_hash
+        if _, err := hf.Write(pwd_full); err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span> else<span class="cov8" title="1"> {
+                pwd_hash = hf.Sum(nil)
+        }</span>
+        // Repeatedly hash for hashRounds. Track time to complete.
+        <span class="cov8" title="1">start := time.Now()
+        for i := 0; i &lt; hashRounds; i++ </span><span class="cov8" title="1">{
+                if _, err := hf.Write(pwd_hash); err != nil </span><span class="cov0" title="0">{
+                        return "", err
+                }</span> else<span class="cov8" title="1"> {
+                        pwd_hash = hf.Sum(nil)
+                }</span>
+        }
+        <span class="cov8" title="1">dur := time.Now().Sub(start).Milliseconds()
+        if dur &lt; int64(minHashMS) </span><span class="cov0" title="0">{
+                return "", errors.Errorf("Hash function with %d rounds took %d ms (min %d). You should increase the number of rounds.", hashRounds, dur, minHashMS)
+        }</span>
+        <span class="cov8" title="1">if dur &gt; int64(maxHashMS) &amp;&amp; maxHashMS &gt; 0 </span><span class="cov0" title="0">{
+                return "", errors.Errorf("Hash function with %d rounds took %d ms (max %d). This is not as bad as being too fast, but may increase latency.", hashRounds, dur, maxHashMS)
+        }</span>
+        // Encode using base64URL
+        <span class="cov8" title="1">encodedHash := stringEncode(pwd_hash)
+        return encodedHash, nil</span>
+}
 </pre>
 		
 		</div>

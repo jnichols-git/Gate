@@ -2,11 +2,12 @@ package database
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkg/errors"
 )
 
-const testing bool = true
+var DATABASE_TESTING bool = true
 
 type UserCred struct {
 	Email        string `json:"email"`
@@ -35,7 +36,7 @@ func authDBKey(email, username string) []byte {
 
 func OpenDB() error {
 	var err error
-	authDBLayout, err = authDBLayout.opened(!testing)
+	authDBLayout, err = authDBLayout.opened(!DATABASE_TESTING)
 	if err != nil {
 		return err
 	}
@@ -104,6 +105,8 @@ func ValidateUserCred(email, username, password string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	fmt.Printf("%s:\n%s\n%s\n", username, pwdHash, entry.Credentials.PasswordHash)
+	fmt.Printf("%t, %t\n", username == entry.Credentials.Username, pwdHash == entry.Credentials.PasswordHash)
 	return username == entry.Credentials.Username && pwdHash == entry.Credentials.PasswordHash, nil
 }
 
