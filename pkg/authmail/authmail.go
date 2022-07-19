@@ -38,9 +38,9 @@ func NewAuthMessage(sendTo string, authCode string) []byte {
 }
 
 // Use smtp to send a message through the target SES host
-func SendMessage(sendFrom Host, sendTo string, msg []byte) {
+func SendMessage(sendFrom Host, sendTo string, msg []byte) error {
 	auth := sendFrom.plainAuth()
 	target := []string{sendTo}
 	addr := sendFrom.address()
-	smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
+	return smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
 }
