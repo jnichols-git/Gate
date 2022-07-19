@@ -88,7 +88,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				setIcon(tmplData, "TLSOkIcon", "yes.svg")
-				tmplData["TLSInfo"] = "TLS connection to auth successful, and hostname verified. This tool does not detect self-signed certificates at this time."
+				tmplData["TLSInfo"] = "TLS connection to auth successful."
 			}
 		}
 	default:
