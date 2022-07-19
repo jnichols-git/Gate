@@ -53,10 +53,6 @@ func CloseDB() error {
 }
 
 func RegisterUser(email, username, password string, permissions UserPerm) error {
-	salt, err := genSalt()
-	if err != nil {
-		return err
-	}
 	// Check to make sure we're not re-registering a user
 	if registered, err := keyExists(authDBLayout["users"], authDBKey(email, username)); err != nil {
 		return err
@@ -64,6 +60,10 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
 		if registered {
 			return errors.New("User already registered")
 		}
+	}
+	salt, err := genSalt()
+	if err != nil {
+		return err
 	}
 	pwdHash, err := slowHash([]byte(password), salt, "sha512")
 	if err != nil {
@@ -105,4 +105,42 @@ func ValidateUserCred(email, username, password string) (bool, error) {
 		return false, err
 	}
 	return username == entry.Credentials.Username && pwdHash == entry.Credentials.PasswordHash, nil
+}
+
+func ChangeUserPassword(email, username, password string, newPassword string) error {
+	// Get current user data. This will fail if the user does not exist.
+	dbval, err := getKey(authDBLayout["users"], authDBKey(email, username))
+	if err != nil {
+		return err
+	}
+	entry := UserEntry{}
+	if err := json.Unmarshal(dbval, &entry); err != nil {
+		return err
+	}
+	// Need to validate old password to change to a new one.
+	if oldOk, _ := ValidateUserCred(email, username, password); !oldOk {
+		return errors.New("Password change failed: old password incorrect")
+	} else {
+	}
+	// Generate password hash
+	salt, err := genSalt()
+	if err != nil {
+		return err
+	}
+	pwdHash, err := slowHash([]byte(newPassword), salt, "sha512")
+	if err != nil {
+		return err
+	}
+	entry.Credentials.PasswordHash = pwdHash
+	entry.Credentials.PasswordSalt = stringEncode(salt)
+	// Write out new entry
+	out, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	err = setKey(authDBLayout["users"], authDBKey(email, username), out)
+	if err != nil {
+		return err
+	}
+	return nil
 }

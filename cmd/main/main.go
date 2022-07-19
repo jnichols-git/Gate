@@ -48,6 +48,24 @@ func main() {
 	if err := database.RegisterUser("jnichols2719@protonmail.com", "jnichols", "password", nil); err == nil {
 		fmt.Println("Re-registration succeeded. It should not.")
 	} else {
+	}
+
+	// Given that fails, let's change passwords. Wrong username?
+	if err := database.ChangeUserPassword("jnichols2719@protonmail.com", "jnichols2719", "password", "newPassword"); err == nil {
+		fmt.Println("Password change with wrong UN succeeded")
+	}
+	// Wrong old password
+	if err := database.ChangeUserPassword("jnichols2719@protonmail.com", "jnichols", "wrongpassword", "newPassword"); err == nil {
+		fmt.Println("Password change with wrong old password succeeded")
+	}
+	// Correct everything
+	if err := database.ChangeUserPassword("jnichols2719@protonmail.com", "jnichols", "password", "newPassword"); err != nil {
+		panic(err)
+	}
+
+	if valid, err := database.ValidateUserCred("jnichols2719@protonmail.com", "jnichols", "newPassword"); err == nil {
+		fmt.Printf("Validated: %t\n", valid)
+	} else {
 		panic(err)
 	}
 
