@@ -15,7 +15,8 @@
 # vendor/
 
 # SSL certificates
-cert/
+cert/*
 
 # Logs
 dat/log/*
+dat/database/*
