@@ -2,10 +2,12 @@
 # pkg/authserver uses this to build its authentication server
 Domain: localhost
 Port: 8080
-ENV_TokenSecret: JWT_SIGNING_SECRET
 SMTPHost:
   ENV_Username: SMTP_USERNAME
   ENV_Password: SMTP_PASSWORD
   Host: email-smtp.us-east-2.amazonaws.com
   Port: 587
   Sender: jnichols2719@protonmail.com
+  TestEmail: success@simulator.amazonses.com
+JWS:
+  ENV_TokenSecret: JWT_SIGNING_SECRET

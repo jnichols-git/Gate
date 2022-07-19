@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>AuthDashboard</title>
+	<link rel="stylesheet" href="/dashboard/resource/style.css">
+	<link rel="stylesheet" href="/dashboard/resource/home.css">
+</head>
+<body>
+    <div class="header">
+		<h1 class="header-title">Auth Dashboard: {{.Info.AppName}}</h1>
+	</div>
+	<div class="body">
+		<div class="body-box" id="col1">
+			<h3>Configuration</h3>
+			<!-- SMTP Host Settings -->
+			<label class="status-label">
+				SMTP: <img src="{{.SMTPOkIcon}}">
+			</label>
+			<form action="/dashboard/update-config-smtp" method="post">
+				<label for="smtpHost" class="form-label">Host: </label>
+				<input class="form-input" type="text" name="smtpHost" value={{.SMTPHost.Host}}><br>
+				<label for="sendFrom" class="form-label">Send From: </label>
+				<input class="form-input" type="text" name="sendFrom" value={{.SMTPHost.Sender}}><br>
+				<input type="submit" value="Save Changes">
+			</form>
+			<!-- Database Settings-->
+			<label class="status-label">
+				Database: <img src="/dashboard/resource/img/no.svg" class="status-icon" alt="True">
+			</label>
+			<p>
+				{{.DBInfo}}
+			</p>
+			<!-- TLS Settings-->
+			<label class="status-label">
+				TLS Certificate: <img src="{{.TLSOkIcon}}" class="status-icon" alt="True">
+			</label>
+			<p>
+				{{.TLSInfo}}
+			</p>
+		</div>
+		<div class="body-box" id="col2">
+			<h3>Controls</h3>
+			<p>WIP</p>
+			<h3>Alter User Permissions</h3>
+			<p>WIP</p>
+		</div>
+	</div>
+</body>
+</html>

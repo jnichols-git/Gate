@@ -1,0 +1,74 @@
+
+body {
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Page blocks */
+
+div.header {
+    display: flex;
+    flex-direction: row;
+    margin: 20px;
+    margin-left: 0px;
+    border-top: 2px solid;
+    border-bottom: 2px solid;
+}
+h1.header-title {
+    margin-left: min(50px, 5vw)
+}
+
+div.body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-left: auto;
+    margin-right: auto;
+    min-width: 60%;
+    width: fit-content;
+}
+
+div.body-box {
+    margin: 20px;
+    padding: 1em;
+    min-width: 400px;
+    max-width: 400px;
+    min-height: 400px;
+    height: fit-content;
+    flex-basis: 25%;
+    border-style: solid;
+    border-width: 2px;
+    border-radius: 20px;
+
+    display: flex;
+    flex-direction: column;
+}
+
+/* Block contents */
+
+label.status-label {
+    display: flex;
+    align-items: center;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+img.status-icon {
+    width: 2em;
+    height: 2em;
+    color: green;
+}
+
+form {
+    width: 80%;
+}
+
+label.form-label {
+    float: left;
+}
+
+.form-input {
+    float: right;
+}
