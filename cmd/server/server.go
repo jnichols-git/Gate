@@ -2,7 +2,6 @@ package main
 
 import (
 	"auth/pkg/authserver"
-	"errors"
 	"fmt"
 	"time"
 )
@@ -10,15 +9,17 @@ import (
 var secret []byte = []byte("test secret")
 
 func main() {
-	srv, err := authserver.ServerFromConfig("./dat/config/config.yaml")
-	if srv == nil {
-		panic(errors.New("Failed to create AuthServer"))
-	}
+	// Create and start server
+	cfg := authserver.NewConfig()
+	err := cfg.ReadConfig("./dat/config/config.yaml")
 	if err != nil {
 		panic(err)
 	}
+	srv := authserver.NewServer(cfg)
 	srv.Start()
-	time.Sleep(time.Second * 1)
+	// Sleep for 5 minutes for testing time
+	time.Sleep(time.Minute * 30)
 	fmt.Println("Stopping server")
 	srv.Stop()
+	fmt.Println("Done!")
 }

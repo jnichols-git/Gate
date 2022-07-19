@@ -9,38 +9,57 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"sync"
 )
 
+/* Quick reminder of the contents of AuthServerConfig:
+Config {
+	Domain string
+	Port int
+	SMTPHost {
+		Username string
+		Password string
+		Host string
+		Port int
+		Sender string
+	}
+	JWS {
+		TokenSecret string
+	}
+}
+*/
+
 // An AServer holds the information needed to fulfill authentication.
 type AuthServer struct {
-	// Server port/address
-	Address string
-	Port    int
-	// JWT signing secret (TODO: move this somewhere more sensible)
-	Secret []byte
-	// Host; see doc/mail
-	SESHost authmail.Host
+	Config *AuthServerConfig
 	// Server; not exported, used internally for controlling HTTPS server
 	srv *http.Server
 	// Waitgroup; needed to maintain concurrency with server
 	wg sync.WaitGroup
 }
 
-// Write out an HTTP response with status code 400 (bad request)
-// 400 denotes malformed requests, i.e. JSON improperly formatted, text encoding wrong
-// 400 should *not* be used for failed authentication.
-func BadRequest(w http.ResponseWriter, msg string) {
-	w.WriteHeader(http.StatusBadRequest)
-	w.Write([]byte(msg))
+// Create a new server using config.
+func NewServer(cfg *AuthServerConfig) *AuthServer {
+	srv := &AuthServer{
+		Config: cfg,
+	}
+	srv.Config.SMTPHost.Username = os.Getenv(srv.Config.SMTPHost.username_ENV)
+	srv.Config.SMTPHost.Password = os.Getenv(srv.Config.SMTPHost.password_ENV)
+	srv.Config.JWS.TokenSecret = os.Getenv(srv.Config.JWS.tokenSecret_ENV)
+	return &AuthServer{
+		Config: cfg,
+	}
 }
 
-// Write out an HTTP response with status code 401 (unauthorized)
-// 401 denotes lack of, or failed, authentication for a given resource.
-// 401 should *not* be used for users that are authenticated but lacking permissions; see 403
-func UnauthorizedRequest(w http.ResponseWriter, msg string) {
-	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte(msg))
+func (s *AuthServer) SMTPHost() authmail.Host {
+	return authmail.Host{
+		Username: s.Config.SMTPHost.Username,
+		Password: s.Config.SMTPHost.Password,
+		Host:     s.Config.SMTPHost.Host,
+		Port:     s.Config.SMTPHost.Port,
+		Sender:   s.Config.SMTPHost.Sender,
+	}
 }
 
 // Write out a response with code and msg
@@ -88,7 +107,7 @@ func (s *AuthServer) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Req
 	// Send an authentication email and write out 200=
 	code := authcode.NewAuthCode(authReq.Email)
 	msg := authmail.NewAuthMessage(authReq.Email, code.Code)
-	authmail.SendMessage(s.SESHost, authReq.Email, msg)
+	authmail.SendMessage(s.SMTPHost(), authReq.Email, msg)
 	succMsg := fmt.Sprintf("Authentication email sent to %s\n", authReq.Email)
 	WriteResponse(w, http.StatusOK, succMsg)
 }
@@ -109,9 +128,9 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	valid := authcode.ValidateAuthCode(authReq.Email, authReq.Code)
-	if valid {
+	if secret, okToSign := os.LookupEnv(s.Config.JWS.TokenSecret); !valid || !okToSign {
 		jwt := authjwt.NewJWT(authReq.Email, map[string]interface{}{"authorized": true})
-		token, _ := authjwt.Export(jwt, s.Secret)
+		token, _ := authjwt.Export(jwt, []byte(secret))
 		WriteResponse(w, http.StatusOK, token)
 	} else {
 		errMsg := fmt.Sprintf("Invalid code")
@@ -134,7 +153,7 @@ func (s *AuthServer) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Req
 		return
 	}
 	// Verify the authToken included with the request
-	token, valid, err := authjwt.Verify(authReq.Token, s.Secret)
+	token, valid, err := authjwt.Verify(authReq.Token, []byte(s.Config.JWS.TokenSecret))
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't process bearer token: %v\n", err)
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
@@ -150,18 +169,22 @@ func (s *AuthServer) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Req
 	WriteResponse(w, http.StatusOK, string(outToken))
 }
 
+// Start the authentication server.
+// Returns the dashboard used to control the server.
 func (s *AuthServer) Start() {
 	// Open log
 	OpenLog()
 	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
-	// Test handler
-	http.HandleFunc(fmt.Sprintf("auth.%s/mail", s.Address), s.HandleEmailAuthRequest)
-	http.HandleFunc(fmt.Sprintf("auth.%s/code", s.Address), s.HandleCodeAuthRequest)
-	http.HandleFunc(fmt.Sprintf("auth.%s/token", s.Address), s.HandleTokenAuthRequest)
+	// Add handlers
+	http.HandleFunc(fmt.Sprintf("auth.%s/mail", s.Config.Domain), s.HandleEmailAuthRequest)
+	http.HandleFunc(fmt.Sprintf("auth.%s/code", s.Config.Domain), s.HandleCodeAuthRequest)
+	http.HandleFunc(fmt.Sprintf("auth.%s/token", s.Config.Domain), s.HandleTokenAuthRequest)
+	// Create dashboard from this AuthServer, and add its endpoint
+	createDashboard(s).addEndpoints()
 	// Generate address
-	fulladdr := fmt.Sprintf("%s:%d", s.Address, s.Port)
-	crt := fmt.Sprintf("./cert/%s.crt", s.Address)
-	key := fmt.Sprintf("./cert/%s.key", s.Address)
+	fulladdr := fmt.Sprintf("%s:%d", s.Config.Domain, s.Config.Port)
+	crt := fmt.Sprintf("./cert/%s.crt", s.Config.Domain)
+	key := fmt.Sprintf("./cert/%s.key", s.Config.Domain)
 	// Fill out fields for server that aren't created by default
 	s.srv = &http.Server{
 		Addr:    fulladdr,
