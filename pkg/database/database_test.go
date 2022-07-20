@@ -13,7 +13,7 @@ func TestDBAccess(t *testing.T) {
 	}
 	// Close database when done.
 	defer CloseDB()
-	if valid, err := ValidateUserCred("user@email.com", "username", "password"); valid || err == nil {
+	if valid, _, _ := ValidateUserCred("username", "password"); valid {
 		t.Error("Validated user credentials that haven't been registered")
 	}
 
@@ -22,11 +22,11 @@ func TestDBAccess(t *testing.T) {
 		t.Error(err)
 	}
 	// Validate those user credentials
-	if _, err := ValidateUserCred("user@email.com", "username", "password"); err != nil {
+	if _, _, err := ValidateUserCred("username", "password"); err != nil {
 		t.Error(err)
 	}
 	// Validate again, but using the wrong password
-	if valid, _ := ValidateUserCred("user@email.com", "username", "wrongpassword"); valid {
+	if valid, _, _ := ValidateUserCred("username", "wrongpassword"); valid {
 		t.Error("Validated user credentials that are incorrect")
 	}
 	// Try re-registering (should fail)
@@ -34,19 +34,19 @@ func TestDBAccess(t *testing.T) {
 		t.Error("Re-registration under same email/username succeeded when it should fail")
 	}
 	// Given that fails, let's change passwords. Wrong username?
-	if err := ChangeUserPassword("user@email.com", "wrongusername", "password", "newPassword"); err == nil {
+	if err := ChangeUserPassword("wrongusername", "password", "newPassword"); err == nil {
 		t.Error("Password change with incorrect username succeeded when it should fail")
 	}
 	// Wrong old password
-	if err := ChangeUserPassword("user@email.com", "username", "wrongpassword", "newPassword"); err == nil {
+	if err := ChangeUserPassword("username", "wrongpassword", "newPassword"); err == nil {
 		t.Error("Password change with incorrect old password succeeded when it should fail")
 	}
 	// Correct everything
-	if err := ChangeUserPassword("user@email.com", "username", "password", "newPassword"); err != nil {
+	if err := ChangeUserPassword("username", "password", "newPassword"); err != nil {
 		t.Error(err)
 	}
 	// Re-validate with new password
-	if _, err := ValidateUserCred("user@email.com", "username", "newPassword"); err != nil {
+	if _, _, err := ValidateUserCred("username", "newPassword"); err != nil {
 		t.Error(err)
 	}
 }
