@@ -2,7 +2,7 @@ package database
 
 import (
 	"encoding/json"
-	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -34,6 +34,13 @@ func authDBKey(email, username string) []byte {
 	return []byte(email + "." + username)
 }
 
+func authDBUnKey(key []byte) (string, string) {
+	emun := strings.Split(string(key), ".")
+	un, _ := stringDecode(emun[0])
+	em, _ := stringDecode(emun[1])
+	return string(un), string(em)
+}
+
 func OpenDB() error {
 	var err error
 	authDBLayout, err = authDBLayout.opened(!DATABASE_TESTING)
@@ -55,12 +62,11 @@ func CloseDB() error {
 
 func RegisterUser(email, username, password string, permissions UserPerm) error {
 	// Check to make sure we're not re-registering a user
-	if registered, err := keyExists(authDBLayout["users"], authDBKey(email, username)); err != nil {
-		return err
-	} else {
-		if registered {
-			return errors.New("User already registered")
-		}
+	if EmailTaken(email) {
+		return errors.New("Email is already in use.")
+	}
+	if UsernameTaken(username) {
+		return errors.New("Username is already in use.")
 	}
 	salt, err := genSalt()
 	if err != nil {
@@ -91,39 +97,53 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
 	return nil
 }
 
-func ValidateUserCred(email, username, password string) (bool, error) {
-	dbval, err := getKey(authDBLayout["users"], authDBKey(email, username))
+// Check if an email is taken
+func EmailTaken(email string) bool {
+	key, _ := findUserByEmail(authDBLayout["users"], email)
+	return key != nil
+}
+
+// Check if a username is taken
+func UsernameTaken(username string) bool {
+	key, _ := findUserByUsername(authDBLayout["users"], username)
+	return key != nil
+}
+
+func UserExists(email, username string) (bool, error) {
+	return keyExists(authDBLayout["users"], authDBKey(email, username))
+}
+
+func ValidateUserCred(username, password string) (bool, UserEntry, error) {
+	key, err := findUserByUsername(authDBLayout["users"], username)
+	if err != nil || key == nil {
+		return false, UserEntry{}, err
+	}
+	dbval, err := getKey(authDBLayout["users"], key)
 	if err != nil {
-		return false, err
+		return false, UserEntry{}, err
 	}
 	entry := UserEntry{}
 	if err := json.Unmarshal(dbval, &entry); err != nil {
-		return false, err
+		return false, UserEntry{}, err
 	}
 	salt, _ := stringDecode(entry.Credentials.PasswordSalt)
 	pwdHash, err := slowHash([]byte(password), salt, entry.Credentials.HashFunc)
 	if err != nil {
-		return false, err
+		return false, UserEntry{}, err
 	}
-	fmt.Printf("%s:\n%s\n%s\n", username, pwdHash, entry.Credentials.PasswordHash)
-	fmt.Printf("%t, %t\n", username == entry.Credentials.Username, pwdHash == entry.Credentials.PasswordHash)
-	return username == entry.Credentials.Username && pwdHash == entry.Credentials.PasswordHash, nil
+	valid := username == entry.Credentials.Username && pwdHash == entry.Credentials.PasswordHash
+	if valid {
+		return valid, entry, nil
+	} else {
+		return valid, UserEntry{}, nil
+	}
 }
 
-func ChangeUserPassword(email, username, password string, newPassword string) error {
-	// Get current user data. This will fail if the user does not exist.
-	dbval, err := getKey(authDBLayout["users"], authDBKey(email, username))
-	if err != nil {
-		return err
-	}
-	entry := UserEntry{}
-	if err := json.Unmarshal(dbval, &entry); err != nil {
-		return err
-	}
+func ChangeUserPassword(username, password string, newPassword string) error {
+	oldOK, entry, _ := ValidateUserCred(username, password)
 	// Need to validate old password to change to a new one.
-	if oldOk, _ := ValidateUserCred(email, username, password); !oldOk {
+	if !oldOK {
 		return errors.New("Password change failed: old password incorrect")
-	} else {
 	}
 	// Generate password hash
 	salt, err := genSalt()
@@ -141,7 +161,7 @@ func ChangeUserPassword(email, username, password string, newPassword string) er
 	if err != nil {
 		return err
 	}
-	err = setKey(authDBLayout["users"], authDBKey(email, username), out)
+	err = setKey(authDBLayout["users"], authDBKey(entry.Credentials.Email, username), out)
 	if err != nil {
 		return err
 	}

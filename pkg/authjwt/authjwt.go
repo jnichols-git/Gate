@@ -17,11 +17,11 @@ type JWTHeader struct {
 
 // JWTBody: Token claims. All are registered except access, which is private.
 type JWTBody struct {
-	Issuer  string                 `json:"iss"`
-	ForUser string                 `json:"sub"`
-	Access  map[string]interface{} `json:"access"`
-	Created int64                  `json:"iat"`
-	Expires int64                  `json:"exp"`
+	Issuer  string          `json:"iss"`
+	ForUser string          `json:"sub"`
+	Access  map[string]bool `json:"access"`
+	Created int64           `json:"iat"`
+	Expires int64           `json:"exp"`
 }
 
 // JSON Web Token structure combining the above.
@@ -31,7 +31,7 @@ type JSONWebToken struct {
 }
 
 // Create a new JWT based on a user email and access tag
-func NewJWT(user string, access map[string]interface{}) *JSONWebToken {
+func NewJWT(user string, access map[string]bool) *JSONWebToken {
 	return &JSONWebToken{
 		JWTHeader{
 			Algorithm: "sha256",
@@ -48,15 +48,12 @@ func NewJWT(user string, access map[string]interface{}) *JSONWebToken {
 }
 
 // Export a JSONWebToken using a given secret
-func Export(t *JSONWebToken, secret []byte) (string, error) {
+func Export(t *JSONWebToken, secret []byte) string {
 	h := hmac.New(sha256.New, secret)
 	// Marshal and encode the JWT header/body separately
 	head, _ := json.Marshal(t.Header)
 	headStr := base64.RawURLEncoding.EncodeToString(head)
-	body, err := json.Marshal(t.Body)
-	if err != nil {
-		return "", err
-	}
+	body, _ := json.Marshal(t.Body)
 	bodyStr := base64.RawURLEncoding.EncodeToString(body)
 	// Write head.body to the hashing algorithm
 	h.Write([]byte(
@@ -65,7 +62,7 @@ func Export(t *JSONWebToken, secret []byte) (string, error) {
 	// Get the signature from the hash
 	signature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 	// Concatenate head.body.signature
-	return headStr + "." + bodyStr + "." + signature, nil
+	return headStr + "." + bodyStr + "." + signature
 }
 
 // Verify that a token string is unaltered, unexpired, and signed with the given secret
@@ -90,7 +87,7 @@ func Verify(token string, secret []byte) (*JSONWebToken, bool, error) {
 		return nil, false, err
 	}
 	// Re-export the resulting jwt; should result in the exact same output
-	expected, _ := Export(jwt, secret)
+	expected := Export(jwt, secret)
 	// Return verification eval result and new token
 	expired := jwt.Body.Expires < time.Now().Unix()
 	return jwt, token == expected && !expired, nil

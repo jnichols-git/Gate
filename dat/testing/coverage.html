@@ -58,13 +58,11 @@
 				
 				<option value="file1">auth/pkg/authjwt/authjwt.go (100.0%)</option>
 				
-				<option value="file2">auth/pkg/authmail/authmail.go (100.0%)</option>
+				<option value="file2">auth/pkg/database/access.go (65.8%)</option>
 				
-				<option value="file3">auth/pkg/database/access.go (80.9%)</option>
+				<option value="file3">auth/pkg/database/database.go (80.3%)</option>
 				
-				<option value="file4">auth/pkg/database/database.go (79.1%)</option>
-				
-				<option value="file5">auth/pkg/database/hashing.go (78.6%)</option>
+				<option value="file4">auth/pkg/database/hashing.go (78.6%)</option>
 				
 				</select>
 			</div>
@@ -152,11 +150,11 @@ type JWTHeader struct {
 
 // JWTBody: Token claims. All are registered except access, which is private.
 type JWTBody struct {
-        Issuer  string                 `json:"iss"`
-        ForUser string                 `json:"sub"`
-        Access  map[string]interface{} `json:"access"`
-        Created int64                  `json:"iat"`
-        Expires int64                  `json:"exp"`
+        Issuer  string          `json:"iss"`
+        ForUser string          `json:"sub"`
+        Access  map[string]bool `json:"access"`
+        Created int64           `json:"iat"`
+        Expires int64           `json:"exp"`
 }
 
 // JSON Web Token structure combining the above.
@@ -166,7 +164,7 @@ type JSONWebToken struct {
 }
 
 // Create a new JWT based on a user email and access tag
-func NewJWT(user string, access map[string]interface{}) *JSONWebToken <span class="cov8" title="1">{
+func NewJWT(user string, access map[string]bool) *JSONWebToken <span class="cov8" title="1">{
         return &amp;JSONWebToken{
                 JWTHeader{
                         Algorithm: "sha256",
@@ -183,16 +181,13 @@ func NewJWT(user string, access map[string]interface{}) *JSONWebToken <span clas
 }</span>
 
 // Export a JSONWebToken using a given secret
-func Export(t *JSONWebToken, secret []byte) (string, error) <span class="cov8" title="1">{
+func Export(t *JSONWebToken, secret []byte) string <span class="cov8" title="1">{
         h := hmac.New(sha256.New, secret)
         // Marshal and encode the JWT header/body separately
         head, _ := json.Marshal(t.Header)
         headStr := base64.RawURLEncoding.EncodeToString(head)
-        body, err := json.Marshal(t.Body)
-        if err != nil </span><span class="cov8" title="1">{
-                return "", err
-        }</span>
-        <span class="cov8" title="1">bodyStr := base64.RawURLEncoding.EncodeToString(body)
+        body, _ := json.Marshal(t.Body)
+        bodyStr := base64.RawURLEncoding.EncodeToString(body)
         // Write head.body to the hashing algorithm
         h.Write([]byte(
                 headStr + "." + bodyStr,
@@ -200,8 +195,8 @@ func Export(t *JSONWebToken, secret []byte) (string, error) <span class="cov8" t
         // Get the signature from the hash
         signature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
         // Concatenate head.body.signature
-        return headStr + "." + bodyStr + "." + signature, nil</span>
-}
+        return headStr + "." + bodyStr + "." + signature
+}</span>
 
 // Verify that a token string is unaltered, unexpired, and signed with the given secret
 func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span class="cov8" title="1">{
@@ -225,62 +220,14 @@ func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span clas
                 return nil, false, err
         }</span>
         // Re-export the resulting jwt; should result in the exact same output
-        <span class="cov8" title="1">expected, _ := Export(jwt, secret)
+        <span class="cov8" title="1">expected := Export(jwt, secret)
         // Return verification eval result and new token
         expired := jwt.Body.Expires &lt; time.Now().Unix()
         return jwt, token == expected &amp;&amp; !expired, nil</span>
 }
 </pre>
 		
-		<pre class="file" id="file2" style="display: none">package authmail
-
-import (
-        "fmt"
-        "net/smtp"
-)
-
-// struct Host holds host data for sending SMTP through SES.
-type Host struct {
-        Username string
-        Password string
-        Host     string
-        Port     int
-        Sender   string
-}
-
-// Generate a PlainAuth to use with smtp.SendMail using host info
-func (h Host) plainAuth() smtp.Auth <span class="cov8" title="1">{
-        return smtp.PlainAuth("", h.Username, h.Password, h.Host)
-}</span>
-
-// Generate an address for smtp.SendMail
-func (h Host) address() string <span class="cov8" title="1">{
-        return fmt.Sprintf("%s:%d", h.Host, h.Port)
-}</span>
-
-// Generate a new authentication message given a target email and authentication code.
-func NewAuthMessage(sendTo string, authCode string) []byte <span class="cov8" title="1">{
-        msg := fmt.Sprintf(
-                "To: %s\r\n"+
-                        "Subject: Authentication Code\r\n"+
-                        "\r\n"+
-                        "Your authentication code is %s.\n"+
-                        "This code will expire in 1 minute.\r\n",
-                sendTo, authCode,
-        )
-        return []byte(msg)
-}</span>
-
-// Use smtp to send a message through the target SES host
-func SendMessage(sendFrom Host, sendTo string, msg []byte) <span class="cov8" title="1">{
-        auth := sendFrom.plainAuth()
-        target := []string{sendTo}
-        addr := sendFrom.address()
-        smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
-}</span>
-</pre>
-		
-		<pre class="file" id="file3" style="display: none">package database
+		<pre class="file" id="file2" style="display: none">package database
 
 import (
         badger "github.com/dgraph-io/badger/v3"
@@ -340,7 +287,7 @@ func getKey(db *badger.DB, key []byte) ([]byte, error) <span class="cov8" title=
         <span class="cov8" title="1">var val []byte
         if err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
                 item, err := txn.Get(key)
-                if err != nil </span><span class="cov8" title="1">{
+                if err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
                 <span class="cov8" title="1">item.Value(func(v []byte) error </span><span class="cov8" title="1">{
@@ -348,42 +295,93 @@ func getKey(db *badger.DB, key []byte) ([]byte, error) <span class="cov8" title=
                         return nil
                 }</span>)
                 <span class="cov8" title="1">return nil</span>
-        }); err != nil <span class="cov8" title="1">{
+        }); err != nil <span class="cov0" title="0">{
                 return nil, err
         }</span> else<span class="cov8" title="1"> {
                 return val, nil
         }</span>
 }
 
-func keyExists(db *badger.DB, key []byte) (bool, error) <span class="cov8" title="1">{
+// Find a user by email. Return their db key.
+func findUserByEmail(db *badger.DB, findEmail string) ([]byte, error) <span class="cov8" title="1">{
         if db == nil </span><span class="cov0" title="0">{
-                return false, errors.New("Attempted to getKey on a nil database")
+                return nil, errors.New("Attempted to getKey on a nil database")
         }</span>
-        <span class="cov8" title="1">var val bool = false
-        if err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
+        <span class="cov8" title="1">var val []byte = nil
+        err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
                 opts := badger.DefaultIteratorOptions
                 opts.PrefetchValues = false
                 it := txn.NewIterator(opts)
                 defer it.Close()
                 for it.Rewind(); it.Valid(); it.Next() </span><span class="cov8" title="1">{
-                        if string(it.Item().Key()) == string(key) </span><span class="cov8" title="1">{
-                                val = true
+                        k := it.Item().Key()
+                        if email, _ := authDBUnKey(k); email == findEmail </span><span class="cov8" title="1">{
+                                val = k
                         }</span>
                 }
                 <span class="cov8" title="1">return nil</span>
+        })
+        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">return val, nil</span>
+}
+
+// Find a user by username. Return their db key.
+func findUserByUsername(db *badger.DB, findUsername string) ([]byte, error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov0" title="0">{
+                return nil, errors.New("Attempted to getKey on a nil database")
+        }</span>
+        <span class="cov8" title="1">var val []byte = nil
+        err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
+                opts := badger.DefaultIteratorOptions
+                opts.PrefetchValues = false
+                it := txn.NewIterator(opts)
+                defer it.Close()
+                for it.Rewind(); it.Valid(); it.Next() </span><span class="cov8" title="1">{
+                        k := it.Item().Key()
+                        if _, username := authDBUnKey(k); username == findUsername </span><span class="cov8" title="1">{
+                                val = k
+                        }</span>
+                }
+                <span class="cov8" title="1">return nil</span>
+        })
+        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">return val, nil</span>
+}
+
+func keyExists(db *badger.DB, key []byte) (bool, error) <span class="cov0" title="0">{
+        if db == nil </span><span class="cov0" title="0">{
+                return false, errors.New("Attempted to getKey on a nil database")
+        }</span>
+        <span class="cov0" title="0">var val bool = false
+        if err := db.View(func(txn *badger.Txn) error </span><span class="cov0" title="0">{
+                opts := badger.DefaultIteratorOptions
+                opts.PrefetchValues = false
+                it := txn.NewIterator(opts)
+                defer it.Close()
+                for it.Rewind(); it.Valid(); it.Next() </span><span class="cov0" title="0">{
+                        if string(it.Item().Key()) == string(key) </span><span class="cov0" title="0">{
+                                val = true
+                        }</span>
+                }
+                <span class="cov0" title="0">return nil</span>
         }); err != nil <span class="cov0" title="0">{
                 return false, err
-        }</span> else<span class="cov8" title="1"> {
+        }</span> else<span class="cov0" title="0"> {
                 return val, nil
         }</span>
 }
 </pre>
 		
-		<pre class="file" id="file4" style="display: none">package database
+		<pre class="file" id="file3" style="display: none">package database
 
 import (
         "encoding/json"
         "fmt"
+        "strings"
 
         "github.com/pkg/errors"
 )
@@ -415,6 +413,13 @@ func authDBKey(email, username string) []byte <span class="cov8" title="1">{
         return []byte(email + "." + username)
 }</span>
 
+func authDBUnKey(key []byte) (string, string) <span class="cov8" title="1">{
+        emun := strings.Split(string(key), ".")
+        un, _ := stringDecode(emun[0])
+        em, _ := stringDecode(emun[1])
+        return string(un), string(em)
+}</span>
+
 func OpenDB() error <span class="cov8" title="1">{
         var err error
         authDBLayout, err = authDBLayout.opened(!DATABASE_TESTING)
@@ -436,13 +441,12 @@ func CloseDB() error <span class="cov8" title="1">{
 
 func RegisterUser(email, username, password string, permissions UserPerm) error <span class="cov8" title="1">{
         // Check to make sure we're not re-registering a user
-        if registered, err := keyExists(authDBLayout["users"], authDBKey(email, username)); err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span> else<span class="cov8" title="1"> {
-                if registered </span><span class="cov8" title="1">{
-                        return errors.New("User already registered")
-                }</span>
-        }
+        if EmailTaken(email) </span><span class="cov8" title="1">{
+                return errors.New("Email is already in use.")
+        }</span>
+        <span class="cov8" title="1">if UsernameTaken(username) </span><span class="cov0" title="0">{
+                return errors.New("Username is already in use.")
+        }</span>
         <span class="cov8" title="1">salt, err := genSalt()
         if err != nil </span><span class="cov0" title="0">{
                 return err
@@ -472,39 +476,54 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
         <span class="cov8" title="1">return nil</span>
 }
 
-func ValidateUserCred(email, username, password string) (bool, error) <span class="cov8" title="1">{
-        dbval, err := getKey(authDBLayout["users"], authDBKey(email, username))
-        if err != nil </span><span class="cov8" title="1">{
-                return false, err
+// Check if an email is taken
+func EmailTaken(email string) bool <span class="cov8" title="1">{
+        key, _ := findUserByEmail(authDBLayout["users"], email)
+        return key != nil
+}</span>
+
+// Check if a username is taken
+func UsernameTaken(username string) bool <span class="cov8" title="1">{
+        key, _ := findUserByUsername(authDBLayout["users"], username)
+        return key != nil
+}</span>
+
+func UserExists(email, username string) (bool, error) <span class="cov0" title="0">{
+        return keyExists(authDBLayout["users"], authDBKey(email, username))
+}</span>
+
+func ValidateUserCred(username, password string) (bool, UserEntry, error) <span class="cov8" title="1">{
+        key, err := findUserByUsername(authDBLayout["users"], username)
+        if err != nil || key == nil </span><span class="cov8" title="1">{
+                return false, UserEntry{}, err
+        }</span>
+        <span class="cov8" title="1">dbval, err := getKey(authDBLayout["users"], key)
+        if err != nil </span><span class="cov0" title="0">{
+                return false, UserEntry{}, err
         }</span>
         <span class="cov8" title="1">entry := UserEntry{}
         if err := json.Unmarshal(dbval, &amp;entry); err != nil </span><span class="cov0" title="0">{
-                return false, err
+                return false, UserEntry{}, err
         }</span>
         <span class="cov8" title="1">salt, _ := stringDecode(entry.Credentials.PasswordSalt)
         pwdHash, err := slowHash([]byte(password), salt, entry.Credentials.HashFunc)
         if err != nil </span><span class="cov0" title="0">{
-                return false, err
+                return false, UserEntry{}, err
         }</span>
-        <span class="cov8" title="1">fmt.Printf("%s:\n%s\n%s\n", username, pwdHash, entry.Credentials.PasswordHash)
-        fmt.Printf("%t, %t\n", username == entry.Credentials.Username, pwdHash == entry.Credentials.PasswordHash)
-        return username == entry.Credentials.Username &amp;&amp; pwdHash == entry.Credentials.PasswordHash, nil</span>
+        <span class="cov8" title="1">fmt.Printf("%s, %s\n%s, %s\n", username, entry.Credentials.Username, pwdHash, entry.Credentials.PasswordHash)
+        valid := username == entry.Credentials.Username &amp;&amp; pwdHash == entry.Credentials.PasswordHash
+        if valid </span><span class="cov8" title="1">{
+                return valid, entry, nil
+        }</span> else<span class="cov8" title="1"> {
+                return valid, UserEntry{}, nil
+        }</span>
 }
 
-func ChangeUserPassword(email, username, password string, newPassword string) error <span class="cov8" title="1">{
-        // Get current user data. This will fail if the user does not exist.
-        dbval, err := getKey(authDBLayout["users"], authDBKey(email, username))
-        if err != nil </span><span class="cov8" title="1">{
-                return err
-        }</span>
-        <span class="cov8" title="1">entry := UserEntry{}
-        if err := json.Unmarshal(dbval, &amp;entry); err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
+func ChangeUserPassword(username, password string, newPassword string) error <span class="cov8" title="1">{
+        oldOK, entry, _ := ValidateUserCred(username, password)
         // Need to validate old password to change to a new one.
-        <span class="cov8" title="1">if oldOk, _ := ValidateUserCred(email, username, password); !oldOk </span><span class="cov8" title="1">{
+        if !oldOK </span><span class="cov8" title="1">{
                 return errors.New("Password change failed: old password incorrect")
-        }</span> else <span class="cov8" title="1">{
         }</span>
         // Generate password hash
         <span class="cov8" title="1">salt, err := genSalt()
@@ -522,7 +541,7 @@ func ChangeUserPassword(email, username, password string, newPassword string) er
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">err = setKey(authDBLayout["users"], authDBKey(email, username), out)
+        <span class="cov8" title="1">err = setKey(authDBLayout["users"], authDBKey(entry.Credentials.Email, username), out)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
@@ -530,7 +549,7 @@ func ChangeUserPassword(email, username, password string, newPassword string) er
 }
 </pre>
 		
-		<pre class="file" id="file5" style="display: none">package database
+		<pre class="file" id="file4" style="display: none">package database
 
 import (
         "crypto/rand"

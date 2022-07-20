@@ -73,6 +73,56 @@ func getKey(db *badger.DB, key []byte) ([]byte, error) {
 	}
 }
 
+// Find a user by email. Return their db key.
+func findUserByEmail(db *badger.DB, findEmail string) ([]byte, error) {
+	if db == nil {
+		return nil, errors.New("Attempted to getKey on a nil database")
+	}
+	var val []byte = nil
+	err := db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			k := it.Item().Key()
+			if email, _ := authDBUnKey(k); email == findEmail {
+				val = k
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val, nil
+}
+
+// Find a user by username. Return their db key.
+func findUserByUsername(db *badger.DB, findUsername string) ([]byte, error) {
+	if db == nil {
+		return nil, errors.New("Attempted to getKey on a nil database")
+	}
+	var val []byte = nil
+	err := db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			k := it.Item().Key()
+			if _, username := authDBUnKey(k); username == findUsername {
+				val = k
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val, nil
+}
+
 func keyExists(db *badger.DB, key []byte) (bool, error) {
 	if db == nil {
 		return false, errors.New("Attempted to getKey on a nil database")
