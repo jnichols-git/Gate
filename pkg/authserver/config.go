@@ -2,14 +2,16 @@ package authserver
 
 import (
 	"io/ioutil"
+	"os"
 
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
 type SMTPHostConfig struct {
-	username_ENV string `yaml:"ENV_Username"`
+	Username_ENV string `yaml:"ENV_Username"`
 	Username     string `yaml:"-"`
-	password_ENV string `yaml:"ENV_Password"`
+	Password_ENV string `yaml:"ENV_Password"`
 	Password     string `yaml:"-"`
 	Host         string `yaml:"Host"`
 	Port         int    `yaml:"Port"`
@@ -18,7 +20,7 @@ type SMTPHostConfig struct {
 }
 
 type JWSConfig struct {
-	tokenSecret_ENV string `yaml:"ENV_TokenSecret"`
+	TokenSecret_ENV string `yaml:"ENV_TokenSecret"`
 	TokenSecret     string `yaml:"-"`
 }
 
@@ -35,6 +37,23 @@ func NewConfig() *AuthServerConfig {
 	return &AuthServerConfig{}
 }
 
+func (s *AuthServerConfig) ReadEnvs() error {
+	var ok bool = true
+	s.SMTPHost.Username, ok = os.LookupEnv(s.SMTPHost.Username_ENV)
+	if !ok {
+		return errors.Errorf("Couldn't read %s", s.SMTPHost.Username_ENV)
+	}
+	s.SMTPHost.Password, ok = os.LookupEnv(s.SMTPHost.Password_ENV)
+	if !ok {
+		return errors.Errorf("Couldn't read %s", s.SMTPHost.Password_ENV)
+	}
+	s.JWS.TokenSecret, ok = os.LookupEnv(s.JWS.TokenSecret_ENV)
+	if !ok {
+		return errors.Errorf("Couldn't read %s", s.JWS.TokenSecret_ENV)
+	}
+	return nil
+}
+
 func (s *AuthServerConfig) ReadConfig(fn string) error {
 	cfg, err := ioutil.ReadFile(fn)
 	if err != nil {
@@ -44,5 +63,10 @@ func (s *AuthServerConfig) ReadConfig(fn string) error {
 	if err != nil {
 		return err
 	}
+	err = s.ReadEnvs()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
