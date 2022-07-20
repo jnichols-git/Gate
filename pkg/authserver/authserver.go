@@ -210,7 +210,7 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	if authReq.Email == "" || authReq.Code == "" {
-		errMsg := fmt.Sprintf("forUser and authCode are needed for endpoint /code\n")
+		errMsg := fmt.Sprintf("email and authCode are needed for endpoint /code\n")
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}

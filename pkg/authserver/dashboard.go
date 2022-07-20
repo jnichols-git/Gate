@@ -12,9 +12,10 @@ import (
 // Persistent data for Dashboard.
 // TODO: this needs to be save-able
 type DashboardData struct {
-	AppName string
-	EmailOk bool
-	TLSOk   bool
+	AppName   string
+	EmailOk   bool
+	DBTesting bool
+	TLSOk     bool
 }
 
 // The Dashboard is a site that allows control over the authentication server.
@@ -31,9 +32,10 @@ type Dashboard struct {
 func createDashboard(fromServer *AuthServer) *Dashboard {
 	return &Dashboard{
 		Data: DashboardData{
-			AppName: "Test App",
-			EmailOk: true,
-			TLSOk:   false,
+			AppName:   "Test App",
+			EmailOk:   true,
+			DBTesting: true,
+			TLSOk:     false,
 		},
 		srv:            fromServer,
 		serveAddr:      fmt.Sprintf("auth.%s/dashboard/", fromServer.Config.Domain),
@@ -121,6 +123,19 @@ func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 		// TODO: These should be sanitized.
 		d.srv.Config.SMTPHost.Host = newHost
 		d.srv.Config.SMTPHost.Sender = newSend
+	}
+	http.Redirect(w, r, "./", http.StatusSeeOther)
+}
+
+func (d *Dashboard) handleDB(w http.ResponseWriter, r *http.Request) {
+	// TODO: Authenticate admin user(s).
+	// Handle post requests through parsing form. Modify backend based on response.
+	fmt.Printf("Received %s", r.Method)
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		testing := r.Form["Testing Mode"][0]
+		// TODO: These should be sanitized.
+		d.Data.DBTesting = testing == "true"
 	}
 	http.Redirect(w, r, "./", http.StatusSeeOther)
 }
