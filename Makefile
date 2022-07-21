@@ -10,3 +10,7 @@ test:
 server:
 	go build ./cmd/server/server.go
 	mv ./server ./bin
+
+server-run:
+	make server
+	./bin/server
