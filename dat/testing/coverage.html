@@ -58,9 +58,9 @@
 				
 				<option value="file1">auth/pkg/authjwt/authjwt.go (100.0%)</option>
 				
-				<option value="file2">auth/pkg/database/access.go (65.8%)</option>
+				<option value="file2">auth/pkg/database/access.go (75.0%)</option>
 				
-				<option value="file3">auth/pkg/database/database.go (80.3%)</option>
+				<option value="file3">auth/pkg/database/database.go (82.2%)</option>
 				
 				<option value="file4">auth/pkg/database/hashing.go (78.6%)</option>
 				
@@ -230,149 +230,61 @@ func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span clas
 		<pre class="file" id="file2" style="display: none">package database
 
 import (
-        badger "github.com/dgraph-io/badger/v3"
-        "github.com/pkg/errors"
+        "fmt"
+
+        "gorm.io/driver/sqlite"
+        "gorm.io/gorm"
+        "gorm.io/gorm/logger"
 )
 
-// Database "generics"; get/set from collection of badger databases
+var db *gorm.DB
 
-type DatabaseCollection map[string]*badger.DB
-
-// Open a database at /tmp/{name}. if write == false, NO DATA will be written to disk.
-// Leave write = true unless you're testing.
-func openDatabase(name string, write bool) (*badger.DB, error) <span class="cov8" title="1">{
-        if write </span><span class="cov0" title="0">{
-                return badger.Open(badger.DefaultOptions("./dat/database/" + name))
-        }</span> else<span class="cov8" title="1"> {
-                return badger.Open(badger.DefaultOptions("").WithInMemory(true))
-        }</span>
-}
-
-// Open every DB in a DatabaseCollection. See description for write arg above in openDatabase.
-func (coll DatabaseCollection) opened(write bool) (DatabaseCollection, error) <span class="cov8" title="1">{
+func OpenDB(path string) error <span class="cov8" title="1">{
         var err error
-        for name := range coll </span><span class="cov8" title="1">{
-                coll[name], err = openDatabase(name, write)
-                if err != nil </span><span class="cov0" title="0">{
-                        return nil, err
-                }</span>
-        }
-        <span class="cov8" title="1">return coll, nil</span>
-}
-
-func setKey(db *badger.DB, key, value []byte) error <span class="cov8" title="1">{
-        if db == nil </span><span class="cov0" title="0">{
-                return errors.New("Attempted to setKey on a nil database")
-        }</span>
-        <span class="cov8" title="1">if err := db.Update(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
-                err := txn.Set(key, value)
-                if err == badger.ErrConflict </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-                <span class="cov8" title="1">if err == badger.ErrTxnTooBig </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-                <span class="cov8" title="1">return nil</span>
-        }); err != nil <span class="cov0" title="0">{
+        db, err = gorm.Open(sqlite.Open(path), &amp;gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+        if err != nil </span><span class="cov0" title="0">{
                 return err
+        }</span>
+        <span class="cov8" title="1">err = db.AutoMigrate(&amp;UserEntry{})
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+func addUser(in *UserEntry) error <span class="cov8" title="1">{
+        if db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("addUser failed; database not open")
+        }</span>
+        <span class="cov8" title="1">db.Create(in)
+        return nil</span>
+}
+
+func updateUser(in *UserEntry) error <span class="cov8" title="1">{
+        if db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("updateUser failed; database not open")
+        }</span>
+        <span class="cov8" title="1">db.Save(in)
+        return nil</span>
+}
+
+func findUserByEmail(find string) (out UserEntry, err error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov0" title="0">{
+                err = fmt.Errorf("findUser failed; database not open")
         }</span> else<span class="cov8" title="1"> {
-                return nil
+                db.Where("email = ?", find).First(&amp;out)
         }</span>
+        <span class="cov8" title="1">return</span>
 }
 
-func getKey(db *badger.DB, key []byte) ([]byte, error) <span class="cov8" title="1">{
+func findUserByUsername(find string) (out UserEntry, err error) <span class="cov8" title="1">{
         if db == nil </span><span class="cov0" title="0">{
-                return nil, errors.New("Attempted to getKey on a nil database")
-        }</span>
-        <span class="cov8" title="1">var val []byte
-        if err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
-                item, err := txn.Get(key)
-                if err != nil </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-                <span class="cov8" title="1">item.Value(func(v []byte) error </span><span class="cov8" title="1">{
-                        val = v
-                        return nil
-                }</span>)
-                <span class="cov8" title="1">return nil</span>
-        }); err != nil <span class="cov0" title="0">{
-                return nil, err
+                err = fmt.Errorf("findUser failed; database not open")
         }</span> else<span class="cov8" title="1"> {
-                return val, nil
+                db.Where("Username = ?", find).First(&amp;out)
         }</span>
-}
-
-// Find a user by email. Return their db key.
-func findUserByEmail(db *badger.DB, findEmail string) ([]byte, error) <span class="cov8" title="1">{
-        if db == nil </span><span class="cov0" title="0">{
-                return nil, errors.New("Attempted to getKey on a nil database")
-        }</span>
-        <span class="cov8" title="1">var val []byte = nil
-        err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
-                opts := badger.DefaultIteratorOptions
-                opts.PrefetchValues = false
-                it := txn.NewIterator(opts)
-                defer it.Close()
-                for it.Rewind(); it.Valid(); it.Next() </span><span class="cov8" title="1">{
-                        k := it.Item().Key()
-                        if email, _ := authDBUnKey(k); email == findEmail </span><span class="cov8" title="1">{
-                                val = k
-                        }</span>
-                }
-                <span class="cov8" title="1">return nil</span>
-        })
-        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov8" title="1">return val, nil</span>
-}
-
-// Find a user by username. Return their db key.
-func findUserByUsername(db *badger.DB, findUsername string) ([]byte, error) <span class="cov8" title="1">{
-        if db == nil </span><span class="cov0" title="0">{
-                return nil, errors.New("Attempted to getKey on a nil database")
-        }</span>
-        <span class="cov8" title="1">var val []byte = nil
-        err := db.View(func(txn *badger.Txn) error </span><span class="cov8" title="1">{
-                opts := badger.DefaultIteratorOptions
-                opts.PrefetchValues = false
-                it := txn.NewIterator(opts)
-                defer it.Close()
-                for it.Rewind(); it.Valid(); it.Next() </span><span class="cov8" title="1">{
-                        k := it.Item().Key()
-                        if _, username := authDBUnKey(k); username == findUsername </span><span class="cov8" title="1">{
-                                val = k
-                        }</span>
-                }
-                <span class="cov8" title="1">return nil</span>
-        })
-        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov8" title="1">return val, nil</span>
-}
-
-func keyExists(db *badger.DB, key []byte) (bool, error) <span class="cov0" title="0">{
-        if db == nil </span><span class="cov0" title="0">{
-                return false, errors.New("Attempted to getKey on a nil database")
-        }</span>
-        <span class="cov0" title="0">var val bool = false
-        if err := db.View(func(txn *badger.Txn) error </span><span class="cov0" title="0">{
-                opts := badger.DefaultIteratorOptions
-                opts.PrefetchValues = false
-                it := txn.NewIterator(opts)
-                defer it.Close()
-                for it.Rewind(); it.Valid(); it.Next() </span><span class="cov0" title="0">{
-                        if string(it.Item().Key()) == string(key) </span><span class="cov0" title="0">{
-                                val = true
-                        }</span>
-                }
-                <span class="cov0" title="0">return nil</span>
-        }); err != nil <span class="cov0" title="0">{
-                return false, err
-        }</span> else<span class="cov0" title="0"> {
-                return val, nil
-        }</span>
+        <span class="cov8" title="1">return</span>
 }
 </pre>
 		
@@ -381,73 +293,48 @@ func keyExists(db *badger.DB, key []byte) (bool, error) <span class="cov0" title
 import (
         "encoding/json"
         "fmt"
-        "strings"
 
         "github.com/pkg/errors"
 )
 
-var DATABASE_TESTING bool = true
+/* From config.go: DBConfig
+Path string
+*/
 
 type UserCred struct {
-        Email        string `json:"email"`
-        Username     string `json:"username"`
-        PasswordHash string `json:"password"`
-        PasswordSalt string `json:"salt"`
-        HashFunc     string `json:"hf"`
+        Email    string `json:"email"`
+        Username string `json:"username"`
 }
 
 type UserPerm map[string]bool
 
-type UserEntry struct {
+type User struct {
         Credentials UserCred `json:"credentials"`
         Permissions UserPerm `json:"permissions"`
 }
 
-var authDBLayout DatabaseCollection = DatabaseCollection{
-        "users": nil,
+// UserEntry: User representation of the database
+type UserEntry struct {
+        ID           uint   `gorm:"autoIncrement,primaryKey"`
+        Email        string `gorm:"email"`
+        Username     string `gorm:"username"`
+        PasswordHash string `gorm:"password"`
+        Salt         string `gorm:"salt"`
+        HashFunc     string `gorm:"hashfunc"`
+        Permissions  string `gorm:"permissions"`
 }
 
-func authDBKey(email, username string) []byte <span class="cov8" title="1">{
-        email = stringEncode([]byte(email))
-        username = stringEncode([]byte(username))
-        return []byte(email + "." + username)
-}</span>
-
-func authDBUnKey(key []byte) (string, string) <span class="cov8" title="1">{
-        emun := strings.Split(string(key), ".")
-        un, _ := stringDecode(emun[0])
-        em, _ := stringDecode(emun[1])
-        return string(un), string(em)
-}</span>
-
-func OpenDB() error <span class="cov8" title="1">{
-        var err error
-        authDBLayout, err = authDBLayout.opened(!DATABASE_TESTING)
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-        <span class="cov8" title="1">return nil</span>
-}
-
-func CloseDB() error <span class="cov8" title="1">{
-        for _, db := range authDBLayout </span><span class="cov8" title="1">{
-                err := db.Close()
-                if err != nil </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-        }
-        <span class="cov8" title="1">return nil</span>
-}
-
+// Register a user with credentials and permissions
+// Returns error or nil
 func RegisterUser(email, username, password string, permissions UserPerm) error <span class="cov8" title="1">{
-        // Check to make sure we're not re-registering a user
-        if EmailTaken(email) </span><span class="cov8" title="1">{
+        if user, _ := findUserByEmail(email); user.Email != "" </span><span class="cov8" title="1">{
                 return errors.New("Email is already in use.")
         }</span>
-        <span class="cov8" title="1">if UsernameTaken(username) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if user, _ := findUserByUsername(username); user.Username != "" </span><span class="cov0" title="0">{
                 return errors.New("Username is already in use.")
         }</span>
-        <span class="cov8" title="1">salt, err := genSalt()
+        <span class="cov8" title="1">perm, err := json.Marshal(permissions)
+        salt, err := genSalt()
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
@@ -455,97 +342,76 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">entry := UserEntry{
-                Credentials: UserCred{
-                        email,
-                        username,
-                        pwdHash,
-                        stringEncode(salt),
-                        "sha512",
-                },
-                Permissions: permissions,
+        <span class="cov8" title="1">entry := &amp;UserEntry{
+                Email:        email,
+                Username:     username,
+                PasswordHash: pwdHash,
+                Salt:         stringEncode(salt),
+                HashFunc:     "sha512",
+                Permissions:  string(perm),
         }
-        out, err := json.Marshal(entry)
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-        <span class="cov8" title="1">err = setKey(authDBLayout["users"], authDBKey(email, username), out)
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-        <span class="cov8" title="1">return nil</span>
+        addUser(entry)
+        return nil</span>
 }
 
-// Check if an email is taken
-func EmailTaken(email string) bool <span class="cov8" title="1">{
-        key, _ := findUserByEmail(authDBLayout["users"], email)
-        return key != nil
-}</span>
-
-// Check if a username is taken
-func UsernameTaken(username string) bool <span class="cov8" title="1">{
-        key, _ := findUserByUsername(authDBLayout["users"], username)
-        return key != nil
-}</span>
-
-func UserExists(email, username string) (bool, error) <span class="cov0" title="0">{
-        return keyExists(authDBLayout["users"], authDBKey(email, username))
-}</span>
-
-func ValidateUserCred(username, password string) (bool, UserEntry, error) <span class="cov8" title="1">{
-        key, err := findUserByUsername(authDBLayout["users"], username)
-        if err != nil || key == nil </span><span class="cov8" title="1">{
-                return false, UserEntry{}, err
-        }</span>
-        <span class="cov8" title="1">dbval, err := getKey(authDBLayout["users"], key)
+// Validate a user with credentials
+// Returns success, user info, and error/nil
+func ValidateUserCred(username, password string) (bool, *User, error) <span class="cov8" title="1">{
+        // Find user. Fail out if non-eistent
+        user, err := findUserByUsername(username)
         if err != nil </span><span class="cov0" title="0">{
-                return false, UserEntry{}, err
+                return false, nil, err
         }</span>
-        <span class="cov8" title="1">entry := UserEntry{}
-        if err := json.Unmarshal(dbval, &amp;entry); err != nil </span><span class="cov0" title="0">{
-                return false, UserEntry{}, err
+        <span class="cov8" title="1">if user.Username == "" </span><span class="cov8" title="1">{
+                return false, nil, fmt.Errorf("User %s not found", username)
         }</span>
-        <span class="cov8" title="1">salt, _ := stringDecode(entry.Credentials.PasswordSalt)
-        pwdHash, err := slowHash([]byte(password), salt, entry.Credentials.HashFunc)
+        // Check hashed password against input password.
+        <span class="cov8" title="1">salt, _ := stringDecode(user.Salt)
+        pwdHash, err := slowHash([]byte(password), salt, user.HashFunc)
         if err != nil </span><span class="cov0" title="0">{
-                return false, UserEntry{}, err
+                return false, nil, err
         }</span>
-        <span class="cov8" title="1">fmt.Printf("%s, %s\n%s, %s\n", username, entry.Credentials.Username, pwdHash, entry.Credentials.PasswordHash)
-        valid := username == entry.Credentials.Username &amp;&amp; pwdHash == entry.Credentials.PasswordHash
+        <span class="cov8" title="1">valid := username == user.Username &amp;&amp; pwdHash == user.PasswordHash
         if valid </span><span class="cov8" title="1">{
-                return valid, entry, nil
+                outUser := &amp;User{
+                        Credentials: UserCred{
+                                user.Email,
+                                user.Username,
+                        },
+                        Permissions: make(UserPerm),
+                }
+                json.Unmarshal([]byte(user.Permissions), &amp;outUser.Permissions)
+                return true, outUser, nil
         }</span> else<span class="cov8" title="1"> {
-                return valid, UserEntry{}, nil
+                return false, &amp;User{}, fmt.Errorf("User validation failed")
         }</span>
 }
 
+// Change user password
+// Returns success and error/nil
 func ChangeUserPassword(username, password string, newPassword string) error <span class="cov8" title="1">{
-        oldOK, entry, _ := ValidateUserCred(username, password)
-        // Need to validate old password to change to a new one.
-        if !oldOK </span><span class="cov8" title="1">{
-                return errors.New("Password change failed: old password incorrect")
-        }</span>
-        // Generate password hash
-        <span class="cov8" title="1">salt, err := genSalt()
+        valid, _, err := ValidateUserCred(username, password)
+        if !valid </span><span class="cov8" title="1">{
+                if err != nil </span><span class="cov8" title="1">{
+                        return err
+                }</span> else<span class="cov0" title="0"> {
+                        return fmt.Errorf("User validation failed")
+                }</span>
+        }
+        <span class="cov8" title="1">user, err := findUserByUsername(username)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">pwdHash, err := slowHash([]byte(newPassword), salt, "sha512")
+        // If the user didn't exist, validation would have failed
+        <span class="cov8" title="1">salt, _ := genSalt()
+        pwdHash, err := slowHash([]byte(newPassword), salt, user.HashFunc)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">entry.Credentials.PasswordHash = pwdHash
-        entry.Credentials.PasswordSalt = stringEncode(salt)
-        // Write out new entry
-        out, err := json.Marshal(entry)
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-        <span class="cov8" title="1">err = setKey(authDBLayout["users"], authDBKey(entry.Credentials.Email, username), out)
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-        <span class="cov8" title="1">return nil</span>
+        <span class="cov8" title="1">user.PasswordHash = pwdHash
+        user.Salt = stringEncode(salt)
+        updateUser(&amp;user)
+        return nil</span>
 }
 </pre>
 		
