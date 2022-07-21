@@ -2,72 +2,48 @@ package database
 
 import (
 	"encoding/json"
-	"strings"
+	"fmt"
 
 	"github.com/pkg/errors"
 )
 
-var DATABASE_TESTING bool = true
+/* From config.go: DBConfig
+Path string
+*/
 
 type UserCred struct {
-	Email        string `json:"email"`
-	Username     string `json:"username"`
-	PasswordHash string `json:"password"`
-	PasswordSalt string `json:"salt"`
-	HashFunc     string `json:"hf"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
 }
 
 type UserPerm map[string]bool
 
-type UserEntry struct {
+type User struct {
 	Credentials UserCred `json:"credentials"`
 	Permissions UserPerm `json:"permissions"`
 }
 
-var authDBLayout DatabaseCollection = DatabaseCollection{
-	"users": nil,
+// UserEntry: User representation of the database
+type UserEntry struct {
+	ID           uint   `gorm:"autoIncrement,primaryKey"`
+	Email        string `gorm:"email"`
+	Username     string `gorm:"username"`
+	PasswordHash string `gorm:"password"`
+	Salt         string `gorm:"salt"`
+	HashFunc     string `gorm:"hashfunc"`
+	Permissions  string `gorm:"permissions"`
 }
 
-func authDBKey(email, username string) []byte {
-	email = stringEncode([]byte(email))
-	username = stringEncode([]byte(username))
-	return []byte(email + "." + username)
-}
-
-func authDBUnKey(key []byte) (string, string) {
-	emun := strings.Split(string(key), ".")
-	un, _ := stringDecode(emun[0])
-	em, _ := stringDecode(emun[1])
-	return string(un), string(em)
-}
-
-func OpenDB() error {
-	var err error
-	authDBLayout, err = authDBLayout.opened(!DATABASE_TESTING)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func CloseDB() error {
-	for _, db := range authDBLayout {
-		err := db.Close()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
+// Register a user with credentials and permissions
+// Returns error or nil
 func RegisterUser(email, username, password string, permissions UserPerm) error {
-	// Check to make sure we're not re-registering a user
-	if EmailTaken(email) {
+	if user, _ := findUserByEmail(email); user.Email != "" {
 		return errors.New("Email is already in use.")
 	}
-	if UsernameTaken(username) {
+	if user, _ := findUserByUsername(username); user.Username != "" {
 		return errors.New("Username is already in use.")
 	}
+	perm, err := json.Marshal(permissions)
 	salt, err := genSalt()
 	if err != nil {
 		return err
@@ -76,94 +52,74 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
 	if err != nil {
 		return err
 	}
-	entry := UserEntry{
-		Credentials: UserCred{
-			email,
-			username,
-			pwdHash,
-			stringEncode(salt),
-			"sha512",
-		},
-		Permissions: permissions,
+	entry := &UserEntry{
+		Email:        email,
+		Username:     username,
+		PasswordHash: pwdHash,
+		Salt:         stringEncode(salt),
+		HashFunc:     "sha512",
+		Permissions:  string(perm),
 	}
-	out, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	err = setKey(authDBLayout["users"], authDBKey(email, username), out)
-	if err != nil {
-		return err
-	}
+	addUser(entry)
 	return nil
 }
 
-// Check if an email is taken
-func EmailTaken(email string) bool {
-	key, _ := findUserByEmail(authDBLayout["users"], email)
-	return key != nil
-}
-
-// Check if a username is taken
-func UsernameTaken(username string) bool {
-	key, _ := findUserByUsername(authDBLayout["users"], username)
-	return key != nil
-}
-
-func UserExists(email, username string) (bool, error) {
-	return keyExists(authDBLayout["users"], authDBKey(email, username))
-}
-
-func ValidateUserCred(username, password string) (bool, UserEntry, error) {
-	key, err := findUserByUsername(authDBLayout["users"], username)
-	if err != nil || key == nil {
-		return false, UserEntry{}, err
-	}
-	dbval, err := getKey(authDBLayout["users"], key)
+// Validate a user with credentials
+// Returns success, user info, and error/nil
+func ValidateUserCred(username, password string) (bool, *User, error) {
+	// Find user. Fail out if non-eistent
+	user, err := findUserByUsername(username)
 	if err != nil {
-		return false, UserEntry{}, err
+		return false, nil, err
 	}
-	entry := UserEntry{}
-	if err := json.Unmarshal(dbval, &entry); err != nil {
-		return false, UserEntry{}, err
+	if user.Username == "" {
+		return false, nil, fmt.Errorf("User %s not found", username)
 	}
-	salt, _ := stringDecode(entry.Credentials.PasswordSalt)
-	pwdHash, err := slowHash([]byte(password), salt, entry.Credentials.HashFunc)
+	// Check hashed password against input password.
+	salt, _ := stringDecode(user.Salt)
+	pwdHash, err := slowHash([]byte(password), salt, user.HashFunc)
 	if err != nil {
-		return false, UserEntry{}, err
+		return false, nil, err
 	}
-	valid := username == entry.Credentials.Username && pwdHash == entry.Credentials.PasswordHash
+	valid := username == user.Username && pwdHash == user.PasswordHash
 	if valid {
-		return valid, entry, nil
+		outUser := &User{
+			Credentials: UserCred{
+				user.Email,
+				user.Username,
+			},
+			Permissions: make(UserPerm),
+		}
+		json.Unmarshal([]byte(user.Permissions), &outUser.Permissions)
+		return true, outUser, nil
 	} else {
-		return valid, UserEntry{}, nil
+		return false, &User{}, fmt.Errorf("User validation failed")
 	}
 }
 
+// Change user password
+// Returns success and error/nil
 func ChangeUserPassword(username, password string, newPassword string) error {
-	oldOK, entry, _ := ValidateUserCred(username, password)
-	// Need to validate old password to change to a new one.
-	if !oldOK {
-		return errors.New("Password change failed: old password incorrect")
+	valid, _, err := ValidateUserCred(username, password)
+	if !valid {
+		if err != nil {
+			return err
+		} else {
+			return fmt.Errorf("User validation failed")
+		}
 	}
-	// Generate password hash
-	salt, err := genSalt()
+	user, err := findUserByUsername(username)
 	if err != nil {
 		return err
 	}
-	pwdHash, err := slowHash([]byte(newPassword), salt, "sha512")
+	// If the user didn't exist, validation would have failed
+	salt, _ := genSalt()
+	pwdHash, err := slowHash([]byte(newPassword), salt, user.HashFunc)
 	if err != nil {
 		return err
 	}
-	entry.Credentials.PasswordHash = pwdHash
-	entry.Credentials.PasswordSalt = stringEncode(salt)
-	// Write out new entry
-	out, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	err = setKey(authDBLayout["users"], authDBKey(entry.Credentials.Email, username), out)
-	if err != nil {
-		return err
-	}
+	user.PasswordHash = pwdHash
+	user.Salt = stringEncode(salt)
+	updateUser(&user)
 	return nil
 }

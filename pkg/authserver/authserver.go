@@ -267,7 +267,7 @@ func (s *AuthServer) Start() {
 	OpenLog()
 	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
 	// Open database
-	database.OpenDB()
+	database.OpenDB(s.Config.DB.Path)
 	// Add handlers
 	http.HandleFunc(fmt.Sprintf("auth.%s/register", s.Config.Domain), s.handleCredRegiRequest)
 	http.HandleFunc(fmt.Sprintf("auth.%s/login", s.Config.Domain), s.handleCredAuthRequest)
@@ -314,6 +314,5 @@ func (s *AuthServer) Stop() {
 	Log("Stopping server.")
 	s.srv.Shutdown(context.TODO())
 	s.wg.Wait()
-	database.CloseDB()
 	CloseLog()
 }

@@ -21,11 +21,10 @@ working.
 
 ### Database Configuration
 
-auth currently uses a local database through [badger](https://github.com/dgraph-io/badger), a lightweight open-source
-key-value database. You can use the dashboard to enable/disable "testing mode" (requires server reboot); testing mode
-will prevent the database from writing to disk.
-
-Future support is planned for more heavyweight SQL server support.
+auth currently uses a local database through [gorm](https://github.com/go-gorm/gorm), a developer-friendly
+Object-Relational Mapping library for Go. The database is implemented using sqlite, with a configuration option
+for the path to the database (default `dat/database/auth.db`). More configuration is planned for future updates
+regarding networked implementations and other SQL databases.
 
 ### TLS Certificate
 
@@ -33,7 +32,7 @@ The dashboard, on each refresh, will attempt to connect to `auth.domain` using T
 TLS Certificate: indicates if this attempt is successful. The dashboard will additionally describe the error
 if one occurs.
 
-The dashboard can upload a `.crt` and `.key` file for TLS. Please exercise caution, previous files will be deleted.
+The dashboard can upload a `.crt` and `.key` file for TLS.
 
 ---
 ## API Specification

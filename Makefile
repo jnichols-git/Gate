@@ -3,6 +3,10 @@ tpath:=./dat/testing
 # List of packages to test; -e [package] excludes from testing
 tlist:=`go list ./... | grep -v -e authserver -e cmd -e authmail`
 
-make test:
+test:
 	go test $(tlist) -coverprofile $(tpath)/coverage.profile
 	go tool cover -html=$(tpath)/coverage.profile -o $(tpath)/coverage.html
+
+server:
+	go build ./cmd/server/server.go
+	mv ./server ./bin

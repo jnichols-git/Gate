@@ -1,147 +1,59 @@
 package database
 
 import (
-	badger "github.com/dgraph-io/badger/v3"
-	"github.com/pkg/errors"
+	"fmt"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-// Database "generics"; get/set from collection of badger databases
+var db *gorm.DB
 
-type DatabaseCollection map[string]*badger.DB
-
-// Open a database at /tmp/{name}. if write == false, NO DATA will be written to disk.
-// Leave write = true unless you're testing.
-func openDatabase(name string, write bool) (*badger.DB, error) {
-	if write {
-		return badger.Open(badger.DefaultOptions("./dat/database/" + name))
-	} else {
-		return badger.Open(badger.DefaultOptions("").WithInMemory(true))
-	}
-}
-
-// Open every DB in a DatabaseCollection. See description for write arg above in openDatabase.
-func (coll DatabaseCollection) opened(write bool) (DatabaseCollection, error) {
+func OpenDB(path string) error {
 	var err error
-	for name := range coll {
-		coll[name], err = openDatabase(name, write)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return coll, nil
-}
-
-func setKey(db *badger.DB, key, value []byte) error {
-	if db == nil {
-		return errors.New("Attempted to setKey on a nil database")
-	}
-	if err := db.Update(func(txn *badger.Txn) error {
-		err := txn.Set(key, value)
-		if err == badger.ErrConflict {
-			return err
-		}
-		if err == badger.ErrTxnTooBig {
-			return err
-		}
-		return nil
-	}); err != nil {
+	db, err = gorm.Open(sqlite.Open(path), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
 		return err
-	} else {
-		return nil
 	}
-}
-
-func getKey(db *badger.DB, key []byte) ([]byte, error) {
-	if db == nil {
-		return nil, errors.New("Attempted to getKey on a nil database")
-	}
-	var val []byte
-	if err := db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
-		if err != nil {
-			return err
-		}
-		item.Value(func(v []byte) error {
-			val = v
-			return nil
-		})
-		return nil
-	}); err != nil {
-		return nil, err
-	} else {
-		return val, nil
-	}
-}
-
-// Find a user by email. Return their db key.
-func findUserByEmail(db *badger.DB, findEmail string) ([]byte, error) {
-	if db == nil {
-		return nil, errors.New("Attempted to getKey on a nil database")
-	}
-	var val []byte = nil
-	err := db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
-		defer it.Close()
-		for it.Rewind(); it.Valid(); it.Next() {
-			k := it.Item().Key()
-			if email, _ := authDBUnKey(k); email == findEmail {
-				val = k
-			}
-		}
-		return nil
-	})
+	err = db.AutoMigrate(&UserEntry{})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return val, nil
+
+	return nil
 }
 
-// Find a user by username. Return their db key.
-func findUserByUsername(db *badger.DB, findUsername string) ([]byte, error) {
+func addUser(in *UserEntry) error {
 	if db == nil {
-		return nil, errors.New("Attempted to getKey on a nil database")
+		return fmt.Errorf("addUser failed; database not open")
 	}
-	var val []byte = nil
-	err := db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
-		defer it.Close()
-		for it.Rewind(); it.Valid(); it.Next() {
-			k := it.Item().Key()
-			if _, username := authDBUnKey(k); username == findUsername {
-				val = k
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return val, nil
+	db.Create(in)
+	return nil
 }
 
-func keyExists(db *badger.DB, key []byte) (bool, error) {
+func updateUser(in *UserEntry) error {
 	if db == nil {
-		return false, errors.New("Attempted to getKey on a nil database")
+		return fmt.Errorf("updateUser failed; database not open")
 	}
-	var val bool = false
-	if err := db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
-		defer it.Close()
-		for it.Rewind(); it.Valid(); it.Next() {
-			if string(it.Item().Key()) == string(key) {
-				val = true
-			}
-		}
-		return nil
-	}); err != nil {
-		return false, err
+	db.Save(in)
+	return nil
+}
+
+func findUserByEmail(find string) (out UserEntry, err error) {
+	if db == nil {
+		err = fmt.Errorf("findUser failed; database not open")
 	} else {
-		return val, nil
+		db.Where("email = ?", find).First(&out)
 	}
+	return
+}
+
+func findUserByUsername(find string) (out UserEntry, err error) {
+	if db == nil {
+		err = fmt.Errorf("findUser failed; database not open")
+	} else {
+		db.Where("Username = ?", find).First(&out)
+	}
+	return
 }

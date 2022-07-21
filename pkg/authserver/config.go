@@ -19,6 +19,10 @@ type SMTPHostConfig struct {
 	TestEmail    string `yaml:"TestEmail"`
 }
 
+type DBConfig struct {
+	Path string `yaml:"Path"`
+}
+
 type JWSConfig struct {
 	TokenSecret_ENV string `yaml:"ENV_TokenSecret"`
 	TokenSecret     string `yaml:"-"`
@@ -30,6 +34,7 @@ type AuthServerConfig struct {
 	Domain   string         `yaml:"Domain"`
 	Port     int            `yaml:"Port"`
 	SMTPHost SMTPHostConfig `yaml:"SMTPHost"`
+	DB       DBConfig       `yaml:"Database"`
 	JWS      JWSConfig      `yaml:"JWS"`
 }
 

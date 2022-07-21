@@ -9,5 +9,7 @@ SMTPHost:
   Port: 587
   Sender: jnichols2719@protonmail.com
   TestEmail: success@simulator.amazonses.com
+Database:
+  Path: ./dat/database/auth.db
 JWS:
   ENV_TokenSecret: JWT_SIGNING_SECRET
