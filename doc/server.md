@@ -2,31 +2,108 @@
 
 `authserver` ties the rest of the `auth` packages together as an https-accessible API for user verification.
 
-## API Endpoints
+---
+## Auth Dashboard
+---
 
-The `auth` api will be deployed as a subdomain `auth`. Initial setup will provide an API key. For an application
+As part of the `authserver` package, the Dashboard provides a place to check the health of your server,
+download logs, and set permissions for certain users (banned, admin, etc.). You can access your dashboard
+from `https://auth.[domain]/dashboard`.
+
+### SMTP Configuration
+
+You can set your SMTP host, and which email you'd like to send from, through the dashboard. These changes
+are saved (see Persistent Settings), so you can be sure your server is getting authentication emails out
+as intended. The TestEmail field in `dat/config/config.yaml` serves as an email to send test messages to;
+when you submit new details, the Dashboard will automatically send out a blank email to that address to
+make sure it can do so without error. The icon next to SMTP: indicates whether your configuration is
+working.
+
+### Database Configuration
+
+auth currently uses a local database through [badger](https://github.com/dgraph-io/badger), a lightweight open-source
+key-value database. You can use the dashboard to enable/disable "testing mode" (requires server reboot); testing mode
+will prevent the database from writing to disk.
+
+Future support is planned for more heavyweight SQL server support.
+
+### TLS Certificate
+
+The dashboard, on each refresh, will attempt to connect to `auth.domain` using TLS; the icon next to
+TLS Certificate: indicates if this attempt is successful. The dashboard will additionally describe the error
+if one occurs.
+
+The dashboard can upload a `.crt` and `.key` file for TLS. Please exercise caution, previous files will be deleted.
+
+---
+## API Specification
+---
+
+The `auth` api will be deployed as a subdomain `auth`. Initial setup will provide (TODO) provide an API key. For an application
 with domain `domain.com`, requests should be main to `auth.domain.com` using header authorization `x-api-key: [key]`
 as specified below.
 
 ### Authentication
 
-Authentication endpoints take a JSON object, defined in `authserver.go` as AuthRequestBody, that has 3 fields:
+Authentication endpoints take a JSON object, defined in `authserver.go` as AuthRequestBody. Possible arguments
+are kept strictly defined in this way to avoid reading extraneous data. Possible fields are:
 
-- `forUser` (string): email being used to authenticate
-- `authCode` (string): email authentication code
+- `email` (string) (validated server-side)
+- `username` (string)
+- `password` (string)
+- `newPassword` (string)
+- `authCode` (string)
+- `getToken` (bool)
 - `authToken` (string): authentication token from prior email authentication
 
-Endpoints will specify which fields are needed below, and will ignore the other fields; they can safely
-be left empty if they aren't being used.
+Each field behaves differently depending on which endpoint is being called. Any field not listed for an endpoint
+will not be used; preferably they should not be included in queries.
 
-- POST `/mail`: Sends an authentication code to `forUser`
-    - `200 OK`: Authentication email sent to `forUser`. Does not guarantee delivery.
-    - `400 Bad Request`: Request was poorly-formed; body should provide more information on the error.
-- POST `/code`: Validates `authCode` for `forUser`
-    - `200 OK`:  `authCode` was valid. Body contains a bearer token.
-    - `400 Bad Request`: Request was poorly-formed; body should provide more information on the error.
-    - `401 Unauthorized`: Authorization failed due to incorrect or expired `authCode`.
+- POST `/register`: User registration
+    - Parameters
+        - `email`: User email. Must be unique.
+        - `username`: User username. Must be unique.
+        - `password`: User password.
+    - Responses
+        - `200 OK`: User was registered in the auth server database.
+        - `400 Bad Request`: Catch-all for registration errors; see contents for error information.
+- POST `/login`: User login credential checking
+    - Parameters
+        - `username`: Username
+        - `password`: Password
+        - `getToken` (optional): Whether to return a JWS cookie representing successful sign on.
+    - Responses
+        - `200 OK`: User credentials match a user in the server database. If `getToken`, body contains a bearer token.
+        - `400 Bad Request`: Catch-all for login errors; see contents for error information
+        - `401 Unauthorized`: User credentials are incorrect.
+- POST `/resetPassword`: User password changes
+    - Parameters
+        - `username`: Username
+        - `password`: The user's *old* password
+        - `newPassword`: The user's desired *new* password
+    - Responses
+        - `200 OK`: User password updated successfully.
+        - `400 Bad Request`: Catch-all for password reset errors; see contents for error information.
+        - `401 Unauthorized`: User credentials (username/password) are incorrect.
+- POST `/mail`: Sends an email with an authentication code.
+    - Parameters
+        - `email`: Target address
+    - Responses
+        - `200 OK`: Email was successfully *sent*. Golang SMTP does not throw on email bounce/complaint; response `200` does not guarantee successful delivery.
+        - `400 Bad Request`: Request was poorly-formed; see contents for error information.
+- POST `/code`: Validates `authCode` for `email`
+    - Parameters
+        - `email`: Email address to which the authentication code was sent
+        - `authCode`: Received validation code
+        - `getToken` (optional): Whether to return a JWS cookie representing successful sign on
+    - Responses
+        - `200 OK`:  `authCode` was valid. If `getToken`, body contains a bearer token.
+        - `400 Bad Request`: Request was poorly-formed; see contents for error information.
+        - `401 Unauthorized`: Authorization failed due to incorrect or expired `authCode`.
 - POST `/token`: Validates `authToken`
-    - `200 OK`: `authToken` was valid. Body contains the decoded contents of `authToken`.
-    - `400 Bad Request`: Request was poorly-formed; body should provide more information on the error.
-    - `401 Unauthorized`: Authorization failed due to incorrect or expired `authToken`.
+    - Parameters
+        - `authToken`: Authentication token
+    - Responses
+        - `200 OK`:  `authToken` was valid (signed by server and unmodified). Body contains the decoded contents of `authToken`.
+        - `400 Bad Request`: Request was poorly-formed; see contents for error information.
+        - `401 Unauthorized`: Authorization failed due to incorrect or expired `authToken`.
