@@ -35,3 +35,7 @@ WIP
 
 Currently, there is not a static list of shortcomings; however, auth has not been examined by a security professional, and should not
 be considered secure and ready for production environments until it has. Specific issues will be added here as they appear.
+
+## Getting Involved
+
+Contributions to auth are highly appreciated! Check [CONTRIBUTING](CONTRIBUTING.md) to learn what you can do to help.
