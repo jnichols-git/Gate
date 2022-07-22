@@ -14,10 +14,9 @@ import (
 
 // Persistent data for Dashboard.
 type DashboardData struct {
-	AppName      string
-	EmailOk      bool
-	TLSOk        bool
-	HandlingUser *database.User
+	AppName string
+	EmailOk bool
+	TLSOk   bool
 }
 
 // The Dashboard is a site that allows control over the authentication server.
@@ -143,7 +142,7 @@ func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 		d.srv.Config.SMTPHost.Host = newHost
 		d.srv.Config.SMTPHost.Sender = newSend
 	}
-	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
 func (d *Dashboard) handleControls(w http.ResponseWriter, r *http.Request) {
@@ -152,20 +151,7 @@ func (d *Dashboard) handleControls(w http.ResponseWriter, r *http.Request) {
 		_, open := r.Form["open"]
 		d.srv.Open = open
 	}
-	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
-}
-
-func (d *Dashboard) handleFindUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		r.ParseForm()
-		email := r.Form["email"][0]
-		user, err := database.FindUserByEmail(email)
-		if err != nil {
-		} else {
-			d.Data.HandlingUser = &user
-		}
-	}
-	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
 func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
@@ -198,6 +184,5 @@ func (d *Dashboard) addEndpoints() {
 	http.Handle(d.serveAddr+"resource/", http.StripPrefix("/dashboard/resource/", resourceFS))
 	http.HandleFunc(d.serveAddr+"update-config-smtp", d.handleSMTP)
 	http.HandleFunc(d.serveAddr+"update-config-controls", d.handleControls)
-	http.HandleFunc(d.serveAddr+"user-search", d.handleFindUser)
 	http.HandleFunc(d.serveAddr+"login/admin-login", d.handleAdminLogin)
 }

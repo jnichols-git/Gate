@@ -46,17 +46,6 @@
 				<input type="checkbox" class="form-input" name="open" {{if .AuthOpen}}checked{{end}}><br>
 				<input type="submit" value="Save Changes">
 			</form>
-			<h3>Alter User Permissions</h3>
-			<form action="/dashboard/user-search" method="post">
-				<label for="email" class="form-label">Find User (Email): </label>
-				<input class="form-input" type="text" name="email">
-				<input type="submit" value="Search">
-			</form>
-			{{if .HandlingUser}}
-			{{with .HandlingUser}}
-			<label>{{.Credentials.Email}}</label>
-			{{end}}
-			{{end}}
 		</div>
 	</div>
 </body>
