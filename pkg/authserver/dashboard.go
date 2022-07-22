@@ -62,7 +62,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		{
 			// Check authentication token
 			if authCookie, err := r.Cookie("auth-admin-jwt"); err == nil {
-				_, valid, err := authjwt.Verify(authCookie.Value, []byte(d.srv.Config.JWS.TokenSecret))
+				_, valid, err := authjwt.Verify(authCookie.Value, []byte(d.srv.Config.JWT.TokenSecret))
 				if err != nil || !valid {
 					http.Redirect(w, r, "/dashboard/login", http.StatusFound)
 					break
@@ -168,7 +168,7 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 				fmt.Printf("Admin user %s logged in\n", user.Credentials.Username)
 				// Set cookie to admin token
 				jwt := authjwt.NewJWT("jani9652", user.Permissions, time.Minute*30)
-				token := authjwt.Export(jwt, []byte(d.srv.Config.JWS.TokenSecret))
+				token := authjwt.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
 				http.SetCookie(w, &http.Cookie{Name: "auth-admin-jwt", Value: token, Path: "/dashboard"})
 				http.Redirect(w, r, "/dashboard", http.StatusFound)
 			}

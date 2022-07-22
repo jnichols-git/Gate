@@ -158,7 +158,7 @@ func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	jwt := authjwt.NewJWT(authReq.Username, entry.Permissions, time.Hour*24)
-	token := authjwt.Export(jwt, []byte(s.Config.JWS.TokenSecret))
+	token := authjwt.Export(jwt, []byte(s.Config.JWT.TokenSecret))
 	if authReq.GetToken {
 		WriteResponse(w, http.StatusOK, token)
 	} else {
@@ -240,7 +240,7 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	valid := authcode.ValidateAuthCode(authReq.Email, authReq.Code)
-	if secret, okToSign := os.LookupEnv(s.Config.JWS.TokenSecret); !valid || !okToSign {
+	if secret, okToSign := os.LookupEnv(s.Config.JWT.TokenSecret); !valid || !okToSign {
 		jwt := authjwt.NewJWT(authReq.Email, map[string]bool{"authorized": true}, time.Hour*24)
 		token := authjwt.Export(jwt, []byte(secret))
 		if authReq.GetToken {
@@ -273,7 +273,7 @@ func (s *AuthServer) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Req
 		return
 	}
 	// Verify the authToken included with the request
-	token, valid, err := authjwt.Verify(authReq.Token, []byte(s.Config.JWS.TokenSecret))
+	token, valid, err := authjwt.Verify(authReq.Token, []byte(s.Config.JWT.TokenSecret))
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't process bearer token: %v\n", err)
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
