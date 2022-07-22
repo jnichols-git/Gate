@@ -167,7 +167,7 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 			if ok && admin {
 				fmt.Printf("Admin user %s logged in\n", user.Credentials.Username)
 				// Set cookie to admin token
-				jwt := authjwt.NewJWT("jani9652", user.Permissions, time.Minute*30)
+				jwt := authjwt.NewJWT("jani9652", user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
 				token := authjwt.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
 				http.SetCookie(w, &http.Cookie{Name: "auth-admin-jwt", Value: token, Path: "/dashboard"})
 				http.Redirect(w, r, "/dashboard", http.StatusFound)

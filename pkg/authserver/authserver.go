@@ -157,7 +157,7 @@ func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Requ
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
 		return
 	}
-	jwt := authjwt.NewJWT(authReq.Username, entry.Permissions, time.Hour*24)
+	jwt := authjwt.NewJWT(authReq.Username, entry.Permissions, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
 	token := authjwt.Export(jwt, []byte(s.Config.JWT.TokenSecret))
 	if authReq.GetToken {
 		WriteResponse(w, http.StatusOK, token)
@@ -241,7 +241,7 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 	}
 	valid := authcode.ValidateAuthCode(authReq.Email, authReq.Code)
 	if secret, okToSign := os.LookupEnv(s.Config.JWT.TokenSecret); !valid || !okToSign {
-		jwt := authjwt.NewJWT(authReq.Email, map[string]bool{"authorized": true}, time.Hour*24)
+		jwt := authjwt.NewJWT(authReq.Email, map[string]bool{"authorized": true}, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
 		token := authjwt.Export(jwt, []byte(secret))
 		if authReq.GetToken {
 			WriteResponse(w, http.StatusOK, token)

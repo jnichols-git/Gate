@@ -26,6 +26,8 @@ type DBConfig struct {
 type JWTConfig struct {
 	TokenSecret_ENV string `yaml:"ENV_TokenSecret"`
 	TokenSecret     string `yaml:"-"`
+	UserValidTime   int    `yaml:"UserValidTime"`
+	AdminValidTime  int    `yaml:"AdminValidTime"`
 }
 
 // ServerConfig defines configuration settings for the authentication server.
