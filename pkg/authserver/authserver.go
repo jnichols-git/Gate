@@ -2,9 +2,9 @@ package authserver
 
 import (
 	"auth/pkg/authcode"
+	"auth/pkg/authcred"
 	"auth/pkg/authjwt"
 	"auth/pkg/authmail"
-	"auth/pkg/database"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -124,7 +124,7 @@ func (s *AuthServer) handleCredRegiRequest(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	// Register user.
-	if err := database.RegisterUser(authReq.Email, authReq.Username, authReq.Password, nil); err != nil {
+	if err := authcred.RegisterUser(authReq.Email, authReq.Username, authReq.Password, nil); err != nil {
 		errMsg := fmt.Sprintf("Registration failed: %v\n", err)
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 	} else {
@@ -151,7 +151,7 @@ func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Requ
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	valid, entry, err := database.ValidateUserCred(authReq.Username, authReq.Password)
+	valid, entry, err := authcred.ValidateUserCred(authReq.Username, authReq.Password)
 	if !valid {
 		errMsg := fmt.Sprintf("Invalid credentials\n")
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
@@ -184,7 +184,7 @@ func (s *AuthServer) handlePwdChangeRequest(w http.ResponseWriter, req *http.Req
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	err = database.ChangeUserPassword(authReq.Username, authReq.Password, authReq.NewPassword)
+	err = authcred.ChangeUserPassword(authReq.Username, authReq.Password, authReq.NewPassword)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to reset password: %v\n", err)
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
@@ -214,7 +214,7 @@ func (s *AuthServer) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Req
 	}
 	// Send an authentication email and write out 200=
 	code := authcode.NewAuthCode(authReq.Email)
-	msg := authmail.NewAuthMessage(authReq.Email, code.Code)
+	msg := authmail.NewAuthMessage(authReq.Email, code)
 	authmail.SendMessage(s.SMTPHost(), authReq.Email, msg)
 	succMsg := fmt.Sprintf("Authentication email sent to %s\n", authReq.Email)
 	WriteResponse(w, http.StatusOK, succMsg)
@@ -296,9 +296,9 @@ func (s *AuthServer) Start() {
 	OpenLog()
 	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
 	// Open database
-	database.OpenDB(s.Config.DB.Path)
+	authcred.OpenDB(s.Config.DB.Path)
 	// Check entries. Count as first run if empty.
-	if database.Entries() == 0 {
+	if authcred.Entries() == 0 {
 		fmt.Println("Welcome to auth")
 		fmt.Println("Your database is empty--you'll need to register admin credentials so you can use the dashboard.")
 		var email, username, password string
@@ -313,7 +313,7 @@ func (s *AuthServer) Start() {
 		fmt.Println(password)
 		fmt.Println("Press enter when you have saved your password.")
 		fmt.Scanln()
-		database.RegisterUser(email, username, password, database.UserPerm{"admin": true})
+		authcred.RegisterUser(email, username, password, authcred.UserPerm{"admin": true})
 		fmt.Println("Registered. Server will now exit; please restart to initialize server.")
 		os.Exit(0)
 	}

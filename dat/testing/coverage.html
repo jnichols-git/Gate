@@ -56,13 +56,13 @@
 				
 				<option value="file0">auth/pkg/authcode/authcode.go (100.0%)</option>
 				
-				<option value="file1">auth/pkg/authjwt/authjwt.go (100.0%)</option>
+				<option value="file1">auth/pkg/authcred/access.go (75.0%)</option>
 				
-				<option value="file2">auth/pkg/database/access.go (75.0%)</option>
+				<option value="file2">auth/pkg/authcred/database.go (68.3%)</option>
 				
-				<option value="file3">auth/pkg/database/database.go (82.2%)</option>
+				<option value="file3">auth/pkg/authcred/hashing.go (78.6%)</option>
 				
-				<option value="file4">auth/pkg/database/hashing.go (78.6%)</option>
+				<option value="file4">auth/pkg/authjwt/authjwt.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -84,7 +84,7 @@ import (
 )
 
 type authorizationCode struct {
-        ForUser string
+        Email   string
         Code    string
         Created time.Time
         Expires time.Time
@@ -94,6 +94,12 @@ var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCo
 
 var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
+/* Generates a ct-length authorization code using all-caps letters.
+Input:
+        ct int: Number of characters to generate
+Output:
+        string: string authorization code
+*/
 func genCode(ct int) string <span class="cov8" title="1">{
         seq := make([]rune, ct)
         for i := range seq </span><span class="cov8" title="1">{
@@ -102,158 +108,56 @@ func genCode(ct int) string <span class="cov8" title="1">{
         <span class="cov8" title="1">return string(seq)</span>
 }
 
-// Create a new authorization code for a given user
-func NewAuthCode(forUser string) *authorizationCode <span class="cov8" title="1">{
+/* Generates a new authorization code, and stores it in memory for checking later.
+Input:
+        email string: Output code will be attached to this email. See authmail for how mail is sent.
+Output:
+        string: string authorization code.
+*/
+func NewAuthCode(email string) string <span class="cov8" title="1">{
         now := time.Now()
         newCode := &amp;authorizationCode{
-                ForUser: forUser,
+                Email:   email,
                 Code:    genCode(6),
                 Created: now,
-                Expires: now.Add(time.Minute),
+                Expires: now.Add(time.Minute * 5),
         }
-        activeCodes[forUser] = newCode
-        return newCode
+        activeCodes[email] = newCode
+        return newCode.Code
 }</span>
 
-// Validate an authorization code
-func ValidateAuthCode(forUser, code string) bool <span class="cov8" title="1">{
-        storedCode, ok := activeCodes[forUser]
+/* Validates a given authorization code against an email.
+Input:
+        email, code string: Both the email and code must match records.
+Output:
+        bool: Represents code validity. true if code correct and unexpired, false if email incorrect, code incorrect, or expired.
+*/
+func ValidateAuthCode(email, code string) bool <span class="cov8" title="1">{
+        storedCode, ok := activeCodes[email]
         if !ok </span><span class="cov8" title="1">{
                 return false
         }</span>
         <span class="cov8" title="1">if storedCode.Code == code &amp;&amp; storedCode.Expires.After(time.Now()) </span><span class="cov8" title="1">{
-                delete(activeCodes, forUser)
+                delete(activeCodes, email)
                 return true
         }</span> else<span class="cov8" title="1"> {
-                delete(activeCodes, forUser)
+                delete(activeCodes, email)
                 return false
         }</span>
 }
 </pre>
 		
-		<pre class="file" id="file1" style="display: none">package authjwt
-
-import (
-        "crypto/hmac"
-        "crypto/sha256"
-        "encoding/base64"
-        "encoding/json"
-        "strings"
-        "time"
-)
-
-// JWTHeader: `auth` treats these as constants.
-type JWTHeader struct {
-        Algorithm string `json:"alg"`
-        Type      string `json:"typ"`
-}
-
-// JWTBody: Token claims. All are registered except access, which is private.
-type JWTBody struct {
-        Issuer  string          `json:"iss"`
-        ForUser string          `json:"sub"`
-        Access  map[string]bool `json:"access"`
-        Created int64           `json:"iat"`
-        Expires int64           `json:"exp"`
-}
-
-// JSON Web Token structure combining the above.
-type JSONWebToken struct {
-        Header JWTHeader
-        Body   JWTBody
-}
-
-// Create a new JWT based on a user email and access tag
-func NewJWT(user string, access map[string]bool) *JSONWebToken <span class="cov8" title="1">{
-        return &amp;JSONWebToken{
-                JWTHeader{
-                        Algorithm: "sha256",
-                        Type:      "jwt",
-                },
-                JWTBody{
-                        Issuer:  "auth",
-                        ForUser: user,
-                        Access:  access,
-                        Created: time.Now().Unix(),
-                        Expires: time.Now().Add(1 * time.Hour).Unix(),
-                },
-        }
-}</span>
-
-// Export a JSONWebToken using a given secret
-func Export(t *JSONWebToken, secret []byte) string <span class="cov8" title="1">{
-        h := hmac.New(sha256.New, secret)
-        // Marshal and encode the JWT header/body separately
-        head, _ := json.Marshal(t.Header)
-        headStr := base64.RawURLEncoding.EncodeToString(head)
-        body, _ := json.Marshal(t.Body)
-        bodyStr := base64.RawURLEncoding.EncodeToString(body)
-        // Write head.body to the hashing algorithm
-        h.Write([]byte(
-                headStr + "." + bodyStr,
-        ))
-        // Get the signature from the hash
-        signature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
-        // Concatenate head.body.signature
-        return headStr + "." + bodyStr + "." + signature
-}</span>
-
-// Verify that a token string is unaltered, unexpired, and signed with the given secret
-func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span class="cov8" title="1">{
-        items := strings.Split(token, ".")
-        // Unmarshal and decode the JWT
-        jwt := &amp;JSONWebToken{}
-        head, err := base64.RawURLEncoding.DecodeString(items[0])
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        <span class="cov8" title="1">err = json.Unmarshal([]byte(head), &amp;(jwt.Header))
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        <span class="cov8" title="1">body, err := base64.RawURLEncoding.DecodeString(items[1])
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        <span class="cov8" title="1">err = json.Unmarshal([]byte(body), &amp;(jwt.Body))
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        // Re-export the resulting jwt; should result in the exact same output
-        <span class="cov8" title="1">expected := Export(jwt, secret)
-        // Return verification eval result and new token
-        expired := jwt.Body.Expires &lt; time.Now().Unix()
-        return jwt, token == expected &amp;&amp; !expired, nil</span>
-}
-</pre>
-		
-		<pre class="file" id="file2" style="display: none">package database
+		<pre class="file" id="file1" style="display: none">package authcred
 
 import (
         "fmt"
 
-        "gorm.io/driver/sqlite"
         "gorm.io/gorm"
-        "gorm.io/gorm/logger"
 )
 
 var db *gorm.DB
 
-func OpenDB(path string) error <span class="cov8" title="1">{
-        var err error
-        db, err = gorm.Open(sqlite.Open(path), &amp;gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-        <span class="cov8" title="1">err = db.AutoMigrate(&amp;UserEntry{})
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-
-        <span class="cov8" title="1">return nil</span>
-}
-
-func addUser(in *UserEntry) error <span class="cov8" title="1">{
+func addUser(in *userEntry) error <span class="cov8" title="1">{
         if db == nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("addUser failed; database not open")
         }</span>
@@ -261,7 +165,7 @@ func addUser(in *UserEntry) error <span class="cov8" title="1">{
         return nil</span>
 }
 
-func updateUser(in *UserEntry) error <span class="cov8" title="1">{
+func updateUser(in *userEntry) error <span class="cov8" title="1">{
         if db == nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("updateUser failed; database not open")
         }</span>
@@ -269,7 +173,7 @@ func updateUser(in *UserEntry) error <span class="cov8" title="1">{
         return nil</span>
 }
 
-func findUserByEmail(find string) (out UserEntry, err error) <span class="cov8" title="1">{
+func findUserByEmail(find string) (out userEntry, err error) <span class="cov8" title="1">{
         if db == nil </span><span class="cov0" title="0">{
                 err = fmt.Errorf("findUser failed; database not open")
         }</span> else<span class="cov8" title="1"> {
@@ -278,7 +182,7 @@ func findUserByEmail(find string) (out UserEntry, err error) <span class="cov8" 
         <span class="cov8" title="1">return</span>
 }
 
-func findUserByUsername(find string) (out UserEntry, err error) <span class="cov8" title="1">{
+func findUserByUsername(find string) (out userEntry, err error) <span class="cov8" title="1">{
         if db == nil </span><span class="cov0" title="0">{
                 err = fmt.Errorf("findUser failed; database not open")
         }</span> else<span class="cov8" title="1"> {
@@ -288,13 +192,16 @@ func findUserByUsername(find string) (out UserEntry, err error) <span class="cov
 }
 </pre>
 		
-		<pre class="file" id="file3" style="display: none">package database
+		<pre class="file" id="file2" style="display: none">package authcred
 
 import (
         "encoding/json"
         "fmt"
 
         "github.com/pkg/errors"
+        "gorm.io/driver/sqlite"
+        "gorm.io/gorm"
+        "gorm.io/gorm/logger"
 )
 
 /* From config.go: DBConfig
@@ -313,8 +220,8 @@ type User struct {
         Permissions UserPerm `json:"permissions"`
 }
 
-// UserEntry: User representation of the database
-type UserEntry struct {
+// userEntry: User representation of the database
+type userEntry struct {
         ID           uint   `gorm:"autoIncrement,primaryKey"`
         Email        string `gorm:"email"`
         Username     string `gorm:"username"`
@@ -322,6 +229,48 @@ type UserEntry struct {
         Salt         string `gorm:"salt"`
         HashFunc     string `gorm:"hashfunc"`
         Permissions  string `gorm:"permissions"`
+}
+
+func (u userEntry) ToUser() User <span class="cov0" title="0">{
+        outUser := User{
+                Credentials: UserCred{
+                        u.Email,
+                        u.Username,
+                },
+                Permissions: make(UserPerm),
+        }
+        json.Unmarshal([]byte(u.Permissions), &amp;outUser.Permissions)
+        return outUser
+}</span>
+
+// Open the database
+func OpenDB(path string) error <span class="cov8" title="1">{
+        var err error
+        db, err = gorm.Open(sqlite.Open(path), &amp;gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">err = db.AutoMigrate(&amp;userEntry{})
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+func Entries() int <span class="cov0" title="0">{
+        entries := make([]userEntry, 0)
+        db.Find(&amp;entries)
+        return len(entries)
+}</span>
+
+// Exported version of findUserByEmail; returns public User instead of userEntry
+func FindUserByEmail(email string) (User, error) <span class="cov0" title="0">{
+        uentry, err := findUserByEmail(email)
+        if err != nil </span><span class="cov0" title="0">{
+                return User{}, err
+        }</span>
+        <span class="cov0" title="0">return uentry.ToUser(), nil</span>
 }
 
 // Register a user with credentials and permissions
@@ -342,7 +291,7 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">entry := &amp;UserEntry{
+        <span class="cov8" title="1">entry := &amp;userEntry{
                 Email:        email,
                 Username:     username,
                 PasswordHash: pwdHash,
@@ -415,7 +364,7 @@ func ChangeUserPassword(username, password string, newPassword string) error <sp
 }
 </pre>
 		
-		<pre class="file" id="file4" style="display: none">package database
+		<pre class="file" id="file3" style="display: none">package authcred
 
 import (
         "crypto/rand"
@@ -492,6 +441,102 @@ func slowHash(pwd, salt []byte, hashFunc string) (string, error) <span class="co
         // Encode using base64URL
         <span class="cov8" title="1">encodedHash := stringEncode(pwd_hash)
         return encodedHash, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package authjwt
+
+import (
+        "crypto/hmac"
+        "crypto/sha256"
+        "encoding/base64"
+        "encoding/json"
+        "strings"
+        "time"
+)
+
+// JWTHeader: `auth` treats these as constants.
+type JWTHeader struct {
+        Algorithm string `json:"alg"`
+        Type      string `json:"typ"`
+}
+
+// JWTBody: Token claims. All are registered except access, which is private.
+type JWTBody struct {
+        Issuer  string          `json:"iss"`
+        ForUser string          `json:"sub"`
+        Access  map[string]bool `json:"access"`
+        Created int64           `json:"iat"`
+        Expires int64           `json:"exp"`
+}
+
+// JSON Web Token structure combining the above.
+type JSONWebToken struct {
+        Header JWTHeader
+        Body   JWTBody
+}
+
+// Create a new JWT based on a user email and access tag
+func NewJWT(user string, access map[string]bool, expiry time.Duration) *JSONWebToken <span class="cov8" title="1">{
+        return &amp;JSONWebToken{
+                JWTHeader{
+                        Algorithm: "sha256",
+                        Type:      "jwt",
+                },
+                JWTBody{
+                        Issuer:  "auth",
+                        ForUser: user,
+                        Access:  access,
+                        Created: time.Now().Unix(),
+                        Expires: time.Now().Add(1 * time.Hour).Unix(),
+                },
+        }
+}</span>
+
+// Export a JSONWebToken using a given secret
+func Export(t *JSONWebToken, secret []byte) string <span class="cov8" title="1">{
+        h := hmac.New(sha256.New, secret)
+        // Marshal and encode the JWT header/body separately
+        head, _ := json.Marshal(t.Header)
+        headStr := base64.RawURLEncoding.EncodeToString(head)
+        body, _ := json.Marshal(t.Body)
+        bodyStr := base64.RawURLEncoding.EncodeToString(body)
+        // Write head.body to the hashing algorithm
+        h.Write([]byte(
+                headStr + "." + bodyStr,
+        ))
+        // Get the signature from the hash
+        signature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+        // Concatenate head.body.signature
+        return headStr + "." + bodyStr + "." + signature
+}</span>
+
+// Verify that a token string is unaltered, unexpired, and signed with the given secret
+func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span class="cov8" title="1">{
+        items := strings.Split(token, ".")
+        // Unmarshal and decode the JWT
+        jwt := &amp;JSONWebToken{}
+        head, err := base64.RawURLEncoding.DecodeString(items[0])
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        <span class="cov8" title="1">err = json.Unmarshal([]byte(head), &amp;(jwt.Header))
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        <span class="cov8" title="1">body, err := base64.RawURLEncoding.DecodeString(items[1])
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        <span class="cov8" title="1">err = json.Unmarshal([]byte(body), &amp;(jwt.Body))
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        // Re-export the resulting jwt; should result in the exact same output
+        <span class="cov8" title="1">expected := Export(jwt, secret)
+        // Return verification eval result and new token
+        expired := jwt.Body.Expires &lt; time.Now().Unix()
+        return jwt, token == expected &amp;&amp; !expired, nil</span>
 }
 </pre>
 		

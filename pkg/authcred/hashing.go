@@ -1,4 +1,4 @@
-package database
+package authcred
 
 import (
 	"crypto/rand"

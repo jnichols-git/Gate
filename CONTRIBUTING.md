@@ -26,7 +26,7 @@ If you SHOULD do something, it is encouraged, but not mandatory. If you MUST do 
 Contribution Guidelines:
 
 - Your code SHOULD be well commented to explain functionality where it is not self-explanatory, and MUST include
-comments fully explaining the parameters and return values of functions.
+comments fully explaining the parameters and return values of functions, except in test files.
 - You SHOULD not use single-character variable names, with the exception of iteration. Your variable names SHOULD
 explain the purpose of the data they hold.
 - You MUST not export functions or data structures that do not need to be used outside of their modules. If your changes

@@ -1,9 +1,9 @@
 package authserver
 
 import (
+	"auth/pkg/authcred"
 	"auth/pkg/authjwt"
 	"auth/pkg/authmail"
-	"auth/pkg/database"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -161,7 +161,7 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		username := r.Form["username"][0]
 		password := r.Form["password"][0]
 		fmt.Println("Validating admin user")
-		valid, user, err := database.ValidateUserCred(username, password)
+		valid, user, err := authcred.ValidateUserCred(username, password)
 		if err == nil && valid {
 			admin, ok := user.Permissions["admin"]
 			if ok && admin {
