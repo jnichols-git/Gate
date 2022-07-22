@@ -31,7 +31,7 @@ type JSONWebToken struct {
 }
 
 // Create a new JWT based on a user email and access tag
-func NewJWT(user string, access map[string]bool) *JSONWebToken {
+func NewJWT(user string, access map[string]bool, expiry time.Duration) *JSONWebToken {
 	return &JSONWebToken{
 		JWTHeader{
 			Algorithm: "sha256",

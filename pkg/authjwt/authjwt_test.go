@@ -3,6 +3,7 @@ package authjwt
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewJWT(t *testing.T) {
@@ -10,7 +11,7 @@ func TestNewJWT(t *testing.T) {
 	testPerm := map[string]bool{
 		"authorized": true,
 	}
-	token := NewJWT(testUser, testPerm)
+	token := NewJWT(testUser, testPerm, time.Hour*24)
 	// Verify that all token fields are properly set
 	if token.Header.Algorithm != "sha256" {
 		t.Errorf("Token uses unrecognized algorithm %s", token.Header.Algorithm)
@@ -32,7 +33,7 @@ func TestExportVerifyValid(t *testing.T) {
 	testPerm := map[string]bool{
 		"authorized": true,
 	}
-	jwt := NewJWT(testUser, testPerm)
+	jwt := NewJWT(testUser, testPerm, time.Hour*24)
 	token := Export(jwt, []byte("test"))
 	res, valid, err := Verify(token, []byte("test"))
 	if err != nil {
@@ -56,10 +57,10 @@ func TestExportVerifyInvalid(t *testing.T) {
 	testPerm := map[string]bool{
 		"authorized": true,
 	}
-	jwt := NewJWT(testUser, testPerm)
+	jwt := NewJWT(testUser, testPerm, time.Hour*24)
 	Export(jwt, []byte("test"))
 	// Create an actual valid token
-	jwt = NewJWT(testUser, testPerm)
+	jwt = NewJWT(testUser, testPerm, time.Hour*24)
 	token := Export(jwt, []byte("test"))
 	// Testing basic modifications to token in header and body
 

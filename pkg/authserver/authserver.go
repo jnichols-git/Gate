@@ -6,6 +6,8 @@ import (
 	"auth/pkg/authmail"
 	"auth/pkg/database"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,7 @@ import (
 	"net/mail"
 	"os"
 	"sync"
+	"time"
 )
 
 /* Quick reminder of the contents of AuthServerConfig:
@@ -35,7 +38,8 @@ Config {
 
 // An AServer holds the information needed to fulfill authentication.
 type AuthServer struct {
-	Config *AuthServerConfig
+	Config *AuthServerConfig // Configuration settings
+	Open   bool              // Is server open to API calls?
 	// Server; not exported, used internally for controlling HTTPS server
 	srv *http.Server
 	// Waitgroup; needed to maintain concurrency with server
@@ -46,6 +50,7 @@ type AuthServer struct {
 func NewServer(cfg *AuthServerConfig) *AuthServer {
 	return &AuthServer{
 		Config: cfg,
+		Open:   true,
 	}
 }
 
@@ -96,6 +101,10 @@ func ReadRequestBody(out *AuthRequestBody, req *http.Request) error {
 
 // Credential registration
 func (s *AuthServer) handleCredRegiRequest(w http.ResponseWriter, req *http.Request) {
+	if !s.Open {
+		WriteResponse(w, http.StatusInternalServerError, "Server is currently disabled")
+		return
+	}
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
 	if err != nil {
@@ -126,6 +135,10 @@ func (s *AuthServer) handleCredRegiRequest(w http.ResponseWriter, req *http.Requ
 
 // Credential authorization
 func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Request) {
+	if !s.Open {
+		WriteResponse(w, http.StatusInternalServerError, "Server is currently disabled")
+		return
+	}
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
 	if err != nil {
@@ -144,8 +157,8 @@ func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Requ
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
 		return
 	}
-	jwt := authjwt.NewJWT(authReq.Username, entry.Permissions)
-	token := authjwt.Export(jwt, []byte(s.Config.JWS.TokenSecret))
+	jwt := authjwt.NewJWT(authReq.Username, entry.Permissions, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
+	token := authjwt.Export(jwt, []byte(s.Config.JWT.TokenSecret))
 	if authReq.GetToken {
 		WriteResponse(w, http.StatusOK, token)
 	} else {
@@ -155,6 +168,10 @@ func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Requ
 
 // Credential change
 func (s *AuthServer) handlePwdChangeRequest(w http.ResponseWriter, req *http.Request) {
+	if !s.Open {
+		WriteResponse(w, http.StatusInternalServerError, "Server is currently disabled")
+		return
+	}
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
 	if err != nil {
@@ -179,6 +196,10 @@ func (s *AuthServer) handlePwdChangeRequest(w http.ResponseWriter, req *http.Req
 
 // Handle email authentication requests
 func (s *AuthServer) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Request) {
+	if !s.Open {
+		WriteResponse(w, http.StatusInternalServerError, "Server is currently disabled")
+		return
+	}
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
 	if err != nil {
@@ -201,6 +222,10 @@ func (s *AuthServer) HandleEmailAuthRequest(w http.ResponseWriter, req *http.Req
 
 // Handle authentication code requests
 func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Request) {
+	if !s.Open {
+		WriteResponse(w, http.StatusInternalServerError, "Server is currently disabled")
+		return
+	}
 	// Read in body. Send a 400 on failure
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
@@ -215,8 +240,8 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	valid := authcode.ValidateAuthCode(authReq.Email, authReq.Code)
-	if secret, okToSign := os.LookupEnv(s.Config.JWS.TokenSecret); !valid || !okToSign {
-		jwt := authjwt.NewJWT(authReq.Email, map[string]bool{"authorized": true})
+	if secret, okToSign := os.LookupEnv(s.Config.JWT.TokenSecret); !valid || !okToSign {
+		jwt := authjwt.NewJWT(authReq.Email, map[string]bool{"authorized": true}, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
 		token := authjwt.Export(jwt, []byte(secret))
 		if authReq.GetToken {
 			WriteResponse(w, http.StatusOK, token)
@@ -230,6 +255,10 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 }
 
 func (s *AuthServer) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Request) {
+	if !s.Open {
+		WriteResponse(w, http.StatusInternalServerError, "Server is currently disabled")
+		return
+	}
 	// Read in body. Send a 400 on failure
 	authReq := AuthRequestBody{}
 	err := ReadRequestBody(&authReq, req)
@@ -244,7 +273,7 @@ func (s *AuthServer) HandleTokenAuthRequest(w http.ResponseWriter, req *http.Req
 		return
 	}
 	// Verify the authToken included with the request
-	token, valid, err := authjwt.Verify(authReq.Token, []byte(s.Config.JWS.TokenSecret))
+	token, valid, err := authjwt.Verify(authReq.Token, []byte(s.Config.JWT.TokenSecret))
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't process bearer token: %v\n", err)
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
@@ -268,6 +297,26 @@ func (s *AuthServer) Start() {
 	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
 	// Open database
 	database.OpenDB(s.Config.DB.Path)
+	// Check entries. Count as first run if empty.
+	if database.Entries() == 0 {
+		fmt.Println("Welcome to auth")
+		fmt.Println("Your database is empty--you'll need to register admin credentials so you can use the dashboard.")
+		var email, username, password string
+		fmt.Print("Email: ")
+		fmt.Scanln(&email)
+		fmt.Print("Username: ")
+		fmt.Scanln(&username)
+		fmt.Println("Your password is below. It will never be output again--save it somewhere secure.")
+		pwd := make([]byte, 32)
+		rand.Read(pwd[:])
+		password = base64.RawURLEncoding.EncodeToString(pwd)
+		fmt.Println(password)
+		fmt.Println("Press enter when you have saved your password.")
+		fmt.Scanln()
+		database.RegisterUser(email, username, password, database.UserPerm{"admin": true})
+		fmt.Println("Registered. Server will now exit; please restart to initialize server.")
+		os.Exit(0)
+	}
 	// Add handlers
 	http.HandleFunc(fmt.Sprintf("auth.%s/register", s.Config.Domain), s.handleCredRegiRequest)
 	http.HandleFunc(fmt.Sprintf("auth.%s/login", s.Config.Domain), s.handleCredAuthRequest)

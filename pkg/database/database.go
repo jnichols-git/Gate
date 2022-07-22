@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 /* From config.go: DBConfig
@@ -23,8 +26,8 @@ type User struct {
 	Permissions UserPerm `json:"permissions"`
 }
 
-// UserEntry: User representation of the database
-type UserEntry struct {
+// userEntry: User representation of the database
+type userEntry struct {
 	ID           uint   `gorm:"autoIncrement,primaryKey"`
 	Email        string `gorm:"email"`
 	Username     string `gorm:"username"`
@@ -32,6 +35,48 @@ type UserEntry struct {
 	Salt         string `gorm:"salt"`
 	HashFunc     string `gorm:"hashfunc"`
 	Permissions  string `gorm:"permissions"`
+}
+
+func (u userEntry) ToUser() User {
+	outUser := User{
+		Credentials: UserCred{
+			u.Email,
+			u.Username,
+		},
+		Permissions: make(UserPerm),
+	}
+	json.Unmarshal([]byte(u.Permissions), &outUser.Permissions)
+	return outUser
+}
+
+// Open the database
+func OpenDB(path string) error {
+	var err error
+	db, err = gorm.Open(sqlite.Open(path), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		return err
+	}
+	err = db.AutoMigrate(&userEntry{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Entries() int {
+	entries := make([]userEntry, 0)
+	db.Find(&entries)
+	return len(entries)
+}
+
+// Exported version of findUserByEmail; returns public User instead of userEntry
+func FindUserByEmail(email string) (User, error) {
+	uentry, err := findUserByEmail(email)
+	if err != nil {
+		return User{}, err
+	}
+	return uentry.ToUser(), nil
 }
 
 // Register a user with credentials and permissions
@@ -52,7 +97,7 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
 	if err != nil {
 		return err
 	}
-	entry := &UserEntry{
+	entry := &userEntry{
 		Email:        email,
 		Username:     username,
 		PasswordHash: pwdHash,

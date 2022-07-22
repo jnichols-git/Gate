@@ -64,11 +64,3 @@ img.status-icon {
 form {
     width: 80%;
 }
-
-label.form-label {
-    float: left;
-}
-
-.form-input {
-    float: right;
-}

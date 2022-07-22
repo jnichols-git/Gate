@@ -23,9 +23,11 @@ type DBConfig struct {
 	Path string `yaml:"Path"`
 }
 
-type JWSConfig struct {
+type JWTConfig struct {
 	TokenSecret_ENV string `yaml:"ENV_TokenSecret"`
 	TokenSecret     string `yaml:"-"`
+	UserValidTime   int    `yaml:"UserValidTime"`
+	AdminValidTime  int    `yaml:"AdminValidTime"`
 }
 
 // ServerConfig defines configuration settings for the authentication server.
@@ -35,7 +37,7 @@ type AuthServerConfig struct {
 	Port     int            `yaml:"Port"`
 	SMTPHost SMTPHostConfig `yaml:"SMTPHost"`
 	DB       DBConfig       `yaml:"Database"`
-	JWS      JWSConfig      `yaml:"JWS"`
+	JWT      JWTConfig      `yaml:"JWT"`
 }
 
 func NewConfig() *AuthServerConfig {
@@ -52,9 +54,9 @@ func (s *AuthServerConfig) ReadEnvs() error {
 	if !ok {
 		return errors.Errorf("Couldn't read %s", s.SMTPHost.Password_ENV)
 	}
-	s.JWS.TokenSecret, ok = os.LookupEnv(s.JWS.TokenSecret_ENV)
+	s.JWT.TokenSecret, ok = os.LookupEnv(s.JWT.TokenSecret_ENV)
 	if !ok {
-		return errors.Errorf("Couldn't read %s", s.JWS.TokenSecret_ENV)
+		return errors.Errorf("Couldn't read %s", s.JWT.TokenSecret_ENV)
 	}
 	return nil
 }

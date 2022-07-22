@@ -15,7 +15,7 @@
 			<h3>Configuration</h3>
 			<!-- SMTP Host Settings -->
 			<label class="status-label">
-				SMTP: <img src="{{.SMTPOkIcon}}">
+				SMTP: <img src="{{.SMTPOkIcon}}" class="status-icon">
 			</label>
 			<form action="/dashboard/update-config-smtp" method="post">
 				<label for="smtpHost" class="form-label">Host: </label>
@@ -26,14 +26,14 @@
 			</form>
 			<!-- Database Settings-->
 			<label class="status-label">
-				Database: <img src="/dashboard/resource/img/no.svg" class="status-icon" alt="True">
+				Database: <img src="{{.DBOkIcon}}" class="status-icon">
 			</label>
 			<p>
 				{{.DBInfo}}
 			</p>
 			<!-- TLS Settings-->
 			<label class="status-label">
-				TLS Certificate: <img src="{{.TLSOkIcon}}" class="status-icon" alt="True">
+				TLS Certificate: <img src="{{.TLSOkIcon}}" class="status-icon">
 			</label>
 			<p>
 				{{.TLSInfo}}
@@ -41,9 +41,11 @@
 		</div>
 		<div class="body-box" id="col2">
 			<h3>Controls</h3>
-			<p>WIP</p>
-			<h3>Alter User Permissions</h3>
-			<p>WIP</p>
+			<form action="/dashboard/update-config-controls" method="post">
+				<label for="open" class="form-label">Authentication Enabled: </label>
+				<input type="checkbox" class="form-input" name="open" {{if .AuthOpen}}checked{{end}}><br>
+				<input type="submit" value="Save Changes">
+			</form>
 		</div>
 	</div>
 </body>

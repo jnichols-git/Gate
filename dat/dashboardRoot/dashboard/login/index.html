@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>AuthDashboard</title>
+	<link rel="stylesheet" href="/dashboard/resource/style.css">
+	<link rel="stylesheet" href="/dashboard/resource/home.css">
+</head>
+<body>
+    <div class="header">
+		<h1 class="header-title">Auth Dashboard Login: {{.Info.AppName}}</h1>
+	</div>
+	<div class="body">
+		<div class="body-box" id="col1">
+			<h3>Log In (Requires Admin Permissions)</h3>
+			<form action="/dashboard/login/admin-login" method="post">
+                <label for="email" class="form-label">Email: </label>
+				<input class="form-input" type="text" name="email"><br>
+				<label for="username" class="form-label">Username: </label>
+				<input class="form-input" type="text" name="username"><br>
+				<label for="password" class="form-label">Password: </label>
+				<input class="form-input" type="password" name="password"><br>
+				<input type="submit" value="Save Changes">
+			</form>
+		</div>
+	</div>
+</body>
+</html>
