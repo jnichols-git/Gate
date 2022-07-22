@@ -25,13 +25,14 @@ If you SHOULD do something, it is encouraged, but not mandatory. If you MUST do 
 
 Contribution Guidelines:
 
-- Your code SHOULD be well commented to explain functionality where it is not self-explanatory, and MUST include
-comments fully explaining the parameters and return values of functions, except in test files.
-- You SHOULD not use single-character variable names, with the exception of iteration. Your variable names SHOULD
+1. Your code SHOULD be well commented to explain functionality where it is not self-explanatory, and MUST include
+comments fully explaining the parameters and return values of functions, except in test files. Your comments SHOULD
+follow up-to-date commenting convention (current reference is [here](https://go.dev/doc/comment))
+2. You SHOULD not use single-character variable names, with the exception of iteration. Your variable names SHOULD
 explain the purpose of the data they hold.
-- You MUST not export functions or data structures that do not need to be used outside of their modules. If your changes
-export a function that was previously non-exported, you MUST justify the change in your PR.
-- Your functions MUST return an error if one can result from a statement contained within. You MUST handle all
+3. You MUST not export functions or data structures that do not need to be used outside of their modules. If a data type is not exported,
+exported functions MUST not return that data type. If your changes export a function that was previously non-exported, you MUST justify the change in your PR.
+4. Your functions MUST return an error if one can result from a statement contained within. You MUST handle all
 errors in exported functions. You SHOULD handle all errors in non-exported functions.
-- Your code MUST include tests. Your test coverage SHOULD be at least 90%, and MUST be at least 80%. These guidelines
-are excepted for server-related code at this time.
+5. Your code MUST include tests. Your test coverage SHOULD be at least 90%, and MUST be at least 80%. This guideline
+is excepted for server-related code at this time.

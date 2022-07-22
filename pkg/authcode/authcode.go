@@ -16,12 +16,12 @@ var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCo
 
 var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-/* Generates a ct-length authorization code using all-caps letters.
-Input:
-	ct int: Number of characters to generate
-Output:
-	string: string authorization code
-*/
+// Generates a ct-length authorization code using all-caps letters.
+//
+// Input:
+//   - ct int: Number of characters to generate
+// Output:
+//   - string: string authorization code
 func genCode(ct int) string {
 	seq := make([]rune, ct)
 	for i := range seq {
@@ -30,12 +30,12 @@ func genCode(ct int) string {
 	return string(seq)
 }
 
-/* Generates a new authorization code, and stores it in memory for checking later.
-Input:
-	email string: Output code will be attached to this email. See authmail for how mail is sent.
-Output:
-	string: string authorization code.
-*/
+// Generates a new authorization code, and stores it in memory for checking later.
+//
+// Input:
+//   - email string: Output code will be attached to this email. See authmail for how mail is sent.
+// Output:
+//   - string: string authorization code.
 func NewAuthCode(email string) string {
 	now := time.Now()
 	newCode := &authorizationCode{
@@ -48,12 +48,12 @@ func NewAuthCode(email string) string {
 	return newCode.Code
 }
 
-/* Validates a given authorization code against an email.
-Input:
-	email, code string: Both the email and code must match records.
-Output:
-	bool: Represents code validity. true if code correct and unexpired, false if email incorrect, code incorrect, or expired.
-*/
+// Validates a given authorization code against an email.
+//
+// Input:
+//   - email, code string: Both the email and code must match records.
+// Output:
+//   - bool: Represents code validity. true if code correct and unexpired, false if email incorrect, code incorrect, or expired.
 func ValidateAuthCode(email, code string) bool {
 	storedCode, ok := activeCodes[email]
 	if !ok {
