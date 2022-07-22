@@ -1,21 +1,23 @@
 package authserver
 
 import (
+	"auth/pkg/authjwt"
 	"auth/pkg/authmail"
+	"auth/pkg/database"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"text/template"
+	"time"
 )
 
 // Persistent data for Dashboard.
-// TODO: this needs to be save-able
 type DashboardData struct {
-	AppName   string
-	EmailOk   bool
-	DBTesting bool
-	TLSOk     bool
+	AppName      string
+	EmailOk      bool
+	TLSOk        bool
+	HandlingUser *database.User
 }
 
 // The Dashboard is a site that allows control over the authentication server.
@@ -32,10 +34,9 @@ type Dashboard struct {
 func createDashboard(fromServer *AuthServer) *Dashboard {
 	return &Dashboard{
 		Data: DashboardData{
-			AppName:   "Test App",
-			EmailOk:   true,
-			DBTesting: true,
-			TLSOk:     false,
+			AppName: "Test App",
+			EmailOk: true,
+			TLSOk:   false,
 		},
 		srv:            fromServer,
 		serveAddr:      fmt.Sprintf("auth.%s/dashboard/", fromServer.Config.Domain),
@@ -60,6 +61,17 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch requrl {
 	case "/dashboard":
 		{
+			// Check authentication token
+			if authCookie, err := r.Cookie("auth-admin-jwt"); err == nil {
+				_, valid, err := authjwt.Verify(authCookie.Value, []byte(d.srv.Config.JWS.TokenSecret))
+				if err != nil || !valid {
+					http.Redirect(w, r, "/dashboard/login", http.StatusFound)
+					break
+				}
+			} else {
+				http.Redirect(w, r, "/dashboard/login", http.StatusFound)
+				break
+			}
 			// Get SMTP config, and send an email to the server config test email to make sure no error is returned.
 			tmplData["SMTPHost"] = d.srv.SMTPHost()
 			if !d.Data.EmailOk {
@@ -74,7 +86,8 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				setIcon(tmplData, "SMTPOkIcon", "yes.svg")
 			}
 			// Database
-			tmplData["DBInfo"] = "Database support incoming."
+			setIcon(tmplData, "DBOkIcon", "yes.svg")
+			tmplData["DBInfo"] = "auth currently uses a local database. More support will be added in future updates here."
 			// TLS
 			if !d.Data.TLSOk {
 				// Dial the server host using TLS.
@@ -92,6 +105,13 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				setIcon(tmplData, "TLSOkIcon", "yes.svg")
 				tmplData["TLSInfo"] = "TLS connection to auth successful."
 			}
+			// Controls
+			tmplData["AuthOpen"] = d.srv.Open
+			break
+		}
+	case "/dashboard/login":
+		{
+
 		}
 	default:
 		{
@@ -115,7 +135,6 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authenticate admin user(s).
 	// Handle post requests through parsing form. Modify backend based on response.
-	fmt.Printf("Received %s", r.Method)
 	if r.Method == http.MethodPost {
 		r.ParseForm()
 		newHost := r.Form["smtpHost"][0]
@@ -124,20 +143,52 @@ func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 		d.srv.Config.SMTPHost.Host = newHost
 		d.srv.Config.SMTPHost.Sender = newSend
 	}
-	http.Redirect(w, r, "./", http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 }
 
-func (d *Dashboard) handleDB(w http.ResponseWriter, r *http.Request) {
-	// TODO: Authenticate admin user(s).
-	// Handle post requests through parsing form. Modify backend based on response.
-	fmt.Printf("Received %s", r.Method)
+func (d *Dashboard) handleControls(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		r.ParseForm()
-		testing := r.Form["Testing Mode"][0]
-		// TODO: These should be sanitized.
-		d.Data.DBTesting = testing == "true"
+		_, open := r.Form["open"]
+		d.srv.Open = open
 	}
-	http.Redirect(w, r, "./", http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+}
+
+func (d *Dashboard) handleFindUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		email := r.Form["email"][0]
+		user, err := database.FindUserByEmail(email)
+		if err != nil {
+		} else {
+			d.Data.HandlingUser = &user
+		}
+	}
+	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+}
+
+func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		//email := r.Form["email"][0]
+		username := r.Form["username"][0]
+		password := r.Form["password"][0]
+		fmt.Println("Validating admin user")
+		valid, user, err := database.ValidateUserCred(username, password)
+		if err == nil && valid {
+			admin, ok := user.Permissions["admin"]
+			if ok && admin {
+				fmt.Printf("Admin user %s logged in\n", user.Credentials.Username)
+				// Set cookie to admin token
+				jwt := authjwt.NewJWT("jani9652", user.Permissions, time.Minute*30)
+				token := authjwt.Export(jwt, []byte(d.srv.Config.JWS.TokenSecret))
+				http.SetCookie(w, &http.Cookie{Name: "auth-admin-jwt", Value: token, Path: "/dashboard"})
+				http.Redirect(w, r, "/dashboard", http.StatusFound)
+			}
+		}
+	}
+	http.Redirect(w, r, "/dashboard/login", http.StatusSeeOther)
 }
 
 func (d *Dashboard) addEndpoints() {
@@ -146,4 +197,7 @@ func (d *Dashboard) addEndpoints() {
 	resourceFS := http.FileServer(http.Dir(d.serveDirectory + "/dashboard/resource"))
 	http.Handle(d.serveAddr+"resource/", http.StripPrefix("/dashboard/resource/", resourceFS))
 	http.HandleFunc(d.serveAddr+"update-config-smtp", d.handleSMTP)
+	http.HandleFunc(d.serveAddr+"update-config-controls", d.handleControls)
+	http.HandleFunc(d.serveAddr+"user-search", d.handleFindUser)
+	http.HandleFunc(d.serveAddr+"login/admin-login", d.handleAdminLogin)
 }
