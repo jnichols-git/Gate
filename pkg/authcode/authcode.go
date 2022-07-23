@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// An authorizationCode stores the email and code needed to validate, in addition to an expiration time.
 type authorizationCode struct {
 	Email   string
 	Code    string
@@ -23,8 +24,10 @@ type authorizationCode struct {
 	Expires time.Time
 }
 
+// activeCodes maps emails to their respective codes.
 var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCode)
 
+// letters contains a list of valid runes used in authorization codes.
 var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 // Generates a ct-length authorization code using all-caps letters.
