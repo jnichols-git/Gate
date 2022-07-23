@@ -313,7 +313,7 @@ func (s *AuthServer) Start() {
 		fmt.Println(password)
 		fmt.Println("Press enter when you have saved your password.")
 		fmt.Scanln()
-		authcred.RegisterUser(email, username, password, authcred.UserPerm{"admin": true})
+		authcred.RegisterUser(email, username, password, map[string]bool{"admin": true})
 		fmt.Println("Registered. Server will now exit; please restart to initialize server.")
 		os.Exit(0)
 	}
