@@ -10,15 +10,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-// stringEncode shorthands for base64.URLEncoding.EncodeToString
-func stringEncode(b []byte) string {
-	return base64.RawURLEncoding.EncodeToString(b)
-}
+// stringEncode is shorthand for base64.URLEncoding.EncodeToString().
+var stringEncode func([]byte) string = base64.RawURLEncoding.EncodeToString
 
-// stringDecode shorthands base64.URLEncoding.DecodeString
-func stringDecode(s string) ([]byte, error) {
-	return base64.RawURLEncoding.DecodeString(s)
-}
+// stringDecode is shorthand for base64.URLEncoding.DecodeString().
+var stringDecode func(string) ([]byte, error) = base64.RawURLEncoding.DecodeString
 
 // genSalt returns a 64-bit random byte string
 func genSalt() ([]byte, error) {
@@ -30,17 +26,26 @@ func genSalt() ([]byte, error) {
 	return salt, nil
 }
 
-const hashRounds int = 65536
+const hashRounds int = 131072 // 2^17
 const minHashMS int = 20
-const maxHashMS int = 0
 
+// hfs is a map of string hash function names to a Go Hash object creator.
+// See slowHash for an example of usage.
 var hfs map[string]func() hash.Hash = map[string]func() hash.Hash{
 	"sha512": sha512.New,
 }
 
-// VERY SLOWLY hash pwd using a named hashFunc supported by auth.database, see hfs above
-// Returns hash, salt, error (if occurs)
-// DO NOT call any other hash function.
+// Hashes a byte string VERY SLOWLY with a specific hashfunc supported by hfs.
+// Any private value used in auth MUST be hashed through slowHash.
+//
+// Input:
+//   - pwd, salt byte: Password (or other string) to hash, and the salt to hash it with.
+//   - hashFunc string: Hash function to use. Must be a key in hfs.
+// Output:
+//   - string: Output hashed value
+//   - error: Any error that occurs, including: unsupported hash function or too-efficient hashing.
+//   Passwords will be put through hashRounds rounds, and if that process takes <20ms, that throws an error.
+//   It is Very Bad if this ever happens.
 func slowHash(pwd, salt []byte, hashFunc string) (string, error) {
 	// Get hash func. Return error if not supported
 	f, ok := hfs[hashFunc]
@@ -67,10 +72,7 @@ func slowHash(pwd, salt []byte, hashFunc string) (string, error) {
 	}
 	dur := time.Now().Sub(start).Milliseconds()
 	if dur < int64(minHashMS) {
-		return "", errors.Errorf("Hash function with %d rounds took %d ms (min %d). You should increase the number of rounds.", hashRounds, dur, minHashMS)
-	}
-	if dur > int64(maxHashMS) && maxHashMS > 0 {
-		return "", errors.Errorf("Hash function with %d rounds took %d ms (max %d). This is not as bad as being too fast, but may increase latency.", hashRounds, dur, maxHashMS)
+		return "", errors.Errorf("Hash function with %d rounds took %d ms (min %d).", hashRounds, dur, minHashMS)
 	}
 	// Encode using base64URL
 	encodedHash := stringEncode(pwd_hash)
