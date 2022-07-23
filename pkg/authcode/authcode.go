@@ -1,3 +1,14 @@
+// Package authcode implements short-term code authentication.
+//
+// Generally speaking, authcode should be used in tandem with a separate package capable of remote communication with users.
+// auth provides [pkg/authmail] for this purpose. A regular control flow with authcode may look like:
+//   email := getUserEmailSomehow()
+//   code := authcode.NewAuthCode(email)
+//   sendEmailToUserSomehow(email, code)
+//   ...
+//   recEmail, recCode := receiveInputFromUserSomehow()
+//   valid := authcode.ValidateAuthCode(recEmail, recCode)
+// authcode does not currently protect against abandoned codes, so there's a risk of filling up memory.
 package authcode
 
 import (
