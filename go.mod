@@ -1,4 +1,4 @@
-module auth
+module github.com/jakenichols2719/gate
 
 go 1.13
 
