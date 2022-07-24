@@ -1,9 +1,9 @@
-package authserver
+package server
 
 import (
-	"auth/pkg/authjwt"
-	"auth/pkg/authmail"
-	"auth/pkg/database"
+	"auth/pkg/credentials"
+	"auth/pkg/gatekey"
+	gatemail "auth/pkg/mail"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -49,7 +49,8 @@ func setIcon(in map[string]interface{}, at string, to string) {
 	in[at] = fmt.Sprintf("/dashboard/resource/img/%s", to)
 }
 
-// Serve requests to dashboard
+// Serve requests to dashboard.
+// This implements the http.Handler interface on Dashboard.
 func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Acquire and sanitize request URL
 	requrl := filepath.Clean(r.URL.Path)
@@ -61,9 +62,9 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/dashboard":
 		{
 			// Check authentication token
-			if authCookie, err := r.Cookie("auth-admin-jwt"); err == nil {
-				_, valid, err := authjwt.Verify(authCookie.Value, []byte(d.srv.Config.JWT.TokenSecret))
-				if err != nil || !valid {
+			if authCookie, err := r.Cookie("admin-gate-key"); err == nil {
+				key, valid, err := gatekey.Verify(authCookie.Value, []byte(d.srv.Config.JWT.TokenSecret))
+				if err != nil || !valid || !key.Body.Permissions["admin"] {
 					http.Redirect(w, r, "/dashboard/login", http.StatusFound)
 					break
 				}
@@ -74,7 +75,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Get SMTP config, and send an email to the server config test email to make sure no error is returned.
 			tmplData["SMTPHost"] = d.srv.SMTPHost()
 			if !d.Data.EmailOk {
-				if err := authmail.SendMessage(d.srv.SMTPHost(), d.srv.Config.SMTPHost.TestEmail, []byte("Ping!")); err != nil {
+				if err := gatemail.SendMessage(d.srv.SMTPHost(), d.srv.Config.SMTPHost.TestEmail, []byte("Ping!")); err != nil {
 					d.Data.EmailOk = true
 					setIcon(tmplData, "SMTPOkIcon", "yes.svg")
 				} else {
@@ -128,9 +129,9 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	//http.ServeFile(w, r, reqfile)
 }
 
+// Standalone handler smtp config updates
 func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authenticate admin user(s).
 	// Handle post requests through parsing form. Modify backend based on response.
@@ -145,6 +146,7 @@ func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
+// Standalone handler for control updates
 func (d *Dashboard) handleControls(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		r.ParseForm()
@@ -154,6 +156,7 @@ func (d *Dashboard) handleControls(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
+// Standalone handler for admin login
 func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		r.ParseForm()
@@ -161,15 +164,15 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		username := r.Form["username"][0]
 		password := r.Form["password"][0]
 		fmt.Println("Validating admin user")
-		valid, user, err := database.ValidateUserCred(username, password)
+		valid, user, err := credentials.ValidateUserCred(username, password)
 		if err == nil && valid {
 			admin, ok := user.Permissions["admin"]
 			if ok && admin {
-				fmt.Printf("Admin user %s logged in\n", user.Credentials.Username)
+				fmt.Printf("Admin user %s logged in\n", user.Username)
 				// Set cookie to admin token
-				jwt := authjwt.NewJWT("jani9652", user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
-				token := authjwt.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
-				http.SetCookie(w, &http.Cookie{Name: "auth-admin-jwt", Value: token, Path: "/dashboard"})
+				jwt := gatekey.NewGateKey(user.Username, user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
+				token := gatekey.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
+				http.SetCookie(w, &http.Cookie{Name: "admin-gate-key", Value: token, Path: "/dashboard"})
 				http.Redirect(w, r, "/dashboard", http.StatusFound)
 			}
 		}

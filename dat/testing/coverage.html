@@ -3,6 +3,7 @@
 <html>
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>credentials: Go Coverage Report</title>
 		<style>
 			body {
 				background: black;
@@ -54,15 +55,17 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">auth/pkg/authcode/authcode.go (100.0%)</option>
+				<option value="file0">auth/pkg/credentials/credentials.go (82.4%)</option>
 				
-				<option value="file1">auth/pkg/authjwt/authjwt.go (100.0%)</option>
+				<option value="file1">auth/pkg/credentials/dbaccess.go (100.0%)</option>
 				
-				<option value="file2">auth/pkg/database/access.go (75.0%)</option>
+				<option value="file2">auth/pkg/credentials/hashing.go (82.6%)</option>
 				
-				<option value="file3">auth/pkg/database/database.go (82.2%)</option>
+				<option value="file3">auth/pkg/gatecode/gatecode.go (100.0%)</option>
 				
-				<option value="file4">auth/pkg/database/hashing.go (78.6%)</option>
+				<option value="file4">auth/pkg/gatekey/gatekey.go (100.0%)</option>
+				
+				<option value="file5">auth/pkg/mail/authmail.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -76,245 +79,59 @@
 		</div>
 		<div id="content">
 		
-		<pre class="file" id="file0" style="display: none">package authcode
-
-import (
-        "math/rand"
-        "time"
-)
-
-type authorizationCode struct {
-        ForUser string
-        Code    string
-        Created time.Time
-        Expires time.Time
-}
-
-var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCode)
-
-var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-func genCode(ct int) string <span class="cov8" title="1">{
-        seq := make([]rune, ct)
-        for i := range seq </span><span class="cov8" title="1">{
-                seq[i] = letters[rand.Intn(len(letters))]
-        }</span>
-        <span class="cov8" title="1">return string(seq)</span>
-}
-
-// Create a new authorization code for a given user
-func NewAuthCode(forUser string) *authorizationCode <span class="cov8" title="1">{
-        now := time.Now()
-        newCode := &amp;authorizationCode{
-                ForUser: forUser,
-                Code:    genCode(6),
-                Created: now,
-                Expires: now.Add(time.Minute),
-        }
-        activeCodes[forUser] = newCode
-        return newCode
-}</span>
-
-// Validate an authorization code
-func ValidateAuthCode(forUser, code string) bool <span class="cov8" title="1">{
-        storedCode, ok := activeCodes[forUser]
-        if !ok </span><span class="cov8" title="1">{
-                return false
-        }</span>
-        <span class="cov8" title="1">if storedCode.Code == code &amp;&amp; storedCode.Expires.After(time.Now()) </span><span class="cov8" title="1">{
-                delete(activeCodes, forUser)
-                return true
-        }</span> else<span class="cov8" title="1"> {
-                delete(activeCodes, forUser)
-                return false
-        }</span>
-}
-</pre>
-		
-		<pre class="file" id="file1" style="display: none">package authjwt
-
-import (
-        "crypto/hmac"
-        "crypto/sha256"
-        "encoding/base64"
-        "encoding/json"
-        "strings"
-        "time"
-)
-
-// JWTHeader: `auth` treats these as constants.
-type JWTHeader struct {
-        Algorithm string `json:"alg"`
-        Type      string `json:"typ"`
-}
-
-// JWTBody: Token claims. All are registered except access, which is private.
-type JWTBody struct {
-        Issuer  string          `json:"iss"`
-        ForUser string          `json:"sub"`
-        Access  map[string]bool `json:"access"`
-        Created int64           `json:"iat"`
-        Expires int64           `json:"exp"`
-}
-
-// JSON Web Token structure combining the above.
-type JSONWebToken struct {
-        Header JWTHeader
-        Body   JWTBody
-}
-
-// Create a new JWT based on a user email and access tag
-func NewJWT(user string, access map[string]bool) *JSONWebToken <span class="cov8" title="1">{
-        return &amp;JSONWebToken{
-                JWTHeader{
-                        Algorithm: "sha256",
-                        Type:      "jwt",
-                },
-                JWTBody{
-                        Issuer:  "auth",
-                        ForUser: user,
-                        Access:  access,
-                        Created: time.Now().Unix(),
-                        Expires: time.Now().Add(1 * time.Hour).Unix(),
-                },
-        }
-}</span>
-
-// Export a JSONWebToken using a given secret
-func Export(t *JSONWebToken, secret []byte) string <span class="cov8" title="1">{
-        h := hmac.New(sha256.New, secret)
-        // Marshal and encode the JWT header/body separately
-        head, _ := json.Marshal(t.Header)
-        headStr := base64.RawURLEncoding.EncodeToString(head)
-        body, _ := json.Marshal(t.Body)
-        bodyStr := base64.RawURLEncoding.EncodeToString(body)
-        // Write head.body to the hashing algorithm
-        h.Write([]byte(
-                headStr + "." + bodyStr,
-        ))
-        // Get the signature from the hash
-        signature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
-        // Concatenate head.body.signature
-        return headStr + "." + bodyStr + "." + signature
-}</span>
-
-// Verify that a token string is unaltered, unexpired, and signed with the given secret
-func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span class="cov8" title="1">{
-        items := strings.Split(token, ".")
-        // Unmarshal and decode the JWT
-        jwt := &amp;JSONWebToken{}
-        head, err := base64.RawURLEncoding.DecodeString(items[0])
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        <span class="cov8" title="1">err = json.Unmarshal([]byte(head), &amp;(jwt.Header))
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        <span class="cov8" title="1">body, err := base64.RawURLEncoding.DecodeString(items[1])
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        <span class="cov8" title="1">err = json.Unmarshal([]byte(body), &amp;(jwt.Body))
-        if err != nil </span><span class="cov8" title="1">{
-                return nil, false, err
-        }</span>
-        // Re-export the resulting jwt; should result in the exact same output
-        <span class="cov8" title="1">expected := Export(jwt, secret)
-        // Return verification eval result and new token
-        expired := jwt.Body.Expires &lt; time.Now().Unix()
-        return jwt, token == expected &amp;&amp; !expired, nil</span>
-}
-</pre>
-		
-		<pre class="file" id="file2" style="display: none">package database
-
-import (
-        "fmt"
-
-        "gorm.io/driver/sqlite"
-        "gorm.io/gorm"
-        "gorm.io/gorm/logger"
-)
-
-var db *gorm.DB
-
-func OpenDB(path string) error <span class="cov8" title="1">{
-        var err error
-        db, err = gorm.Open(sqlite.Open(path), &amp;gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-        <span class="cov8" title="1">err = db.AutoMigrate(&amp;UserEntry{})
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-
-        <span class="cov8" title="1">return nil</span>
-}
-
-func addUser(in *UserEntry) error <span class="cov8" title="1">{
-        if db == nil </span><span class="cov0" title="0">{
-                return fmt.Errorf("addUser failed; database not open")
-        }</span>
-        <span class="cov8" title="1">db.Create(in)
-        return nil</span>
-}
-
-func updateUser(in *UserEntry) error <span class="cov8" title="1">{
-        if db == nil </span><span class="cov0" title="0">{
-                return fmt.Errorf("updateUser failed; database not open")
-        }</span>
-        <span class="cov8" title="1">db.Save(in)
-        return nil</span>
-}
-
-func findUserByEmail(find string) (out UserEntry, err error) <span class="cov8" title="1">{
-        if db == nil </span><span class="cov0" title="0">{
-                err = fmt.Errorf("findUser failed; database not open")
-        }</span> else<span class="cov8" title="1"> {
-                db.Where("email = ?", find).First(&amp;out)
-        }</span>
-        <span class="cov8" title="1">return</span>
-}
-
-func findUserByUsername(find string) (out UserEntry, err error) <span class="cov8" title="1">{
-        if db == nil </span><span class="cov0" title="0">{
-                err = fmt.Errorf("findUser failed; database not open")
-        }</span> else<span class="cov8" title="1"> {
-                db.Where("Username = ?", find).First(&amp;out)
-        }</span>
-        <span class="cov8" title="1">return</span>
-}
-</pre>
-		
-		<pre class="file" id="file3" style="display: none">package database
+		<pre class="file" id="file0" style="display: none">// Package credentials handles the authentication of users using username-password pairs
+// Each user is stored as a userEntry in a local database. The database columns are defined
+// by the userEntry struct, so they appear as seen below:
+//   +----+-------+----------+---------------+------+---------------+-------------+
+//   | ID | Email | Username | Password Hash | Salt | Hash Function | Permissions |
+//   +----+-------+----------+---------------+------+---------------+-------------+
+// Two main authentication functions are provided in RegisterUser() and ValidateUserCred(),
+// with supporting functions ChangeUserPassword() and ChangeUserPermissions() to alter the
+// data of already-existing users in the database.
+//
+// credentials exports the User type, which contains the same data as userEntry with private data
+// (password hash, salt, hash func, internal ID) removed. ValidateUserCred() returns one, so that
+// when the authentication API is called, it returns back information about the user in a format
+// that can easily pass back to the application servers or converted into a token without exposing
+// important data.
+package credentials
 
 import (
         "encoding/json"
         "fmt"
 
         "github.com/pkg/errors"
+        "gorm.io/driver/sqlite"
+        "gorm.io/gorm"
+        "gorm.io/gorm/logger"
 )
 
 /* From config.go: DBConfig
 Path string
 */
 
-type UserCred struct {
-        Email    string `json:"email"`
-        Username string `json:"username"`
-}
-
-type UserPerm map[string]bool
-
+// A User contains *public* information about a user.
+// authcred functions that return user info MUST return this.
 type User struct {
-        Credentials UserCred `json:"credentials"`
-        Permissions UserPerm `json:"permissions"`
+        Email       string          `json:"email"`
+        Username    string          `json:"username"`
+        Permissions map[string]bool `json:"permissions"`
 }
 
-// UserEntry: User representation of the database
-type UserEntry struct {
+// Empty() checks if the calling User is the empty User.
+// This means no email or username, and 0 permissions.
+//
+// Calling:
+//   - u User: User to check.
+// Output:
+//   - bool: Is u the empty User?
+func (u User) Empty() bool <span class="cov8" title="1">{
+        return u.Email == "" &amp;&amp; u.Username == "" &amp;&amp; len(u.Permissions) == 0
+}</span>
+
+// A userEntry contains public *and private* information about a user.
+// authcred functions that are exported MUST NOT return this.
+type userEntry struct {
         ID           uint   `gorm:"autoIncrement,primaryKey"`
         Email        string `gorm:"email"`
         Username     string `gorm:"username"`
@@ -324,16 +141,116 @@ type UserEntry struct {
         Permissions  string `gorm:"permissions"`
 }
 
-// Register a user with credentials and permissions
-// Returns error or nil
-func RegisterUser(email, username, password string, permissions UserPerm) error <span class="cov8" title="1">{
-        if user, _ := findUserByEmail(email); user.Email != "" </span><span class="cov8" title="1">{
+// Empty() checks if the calling userEntry is the empty userEntry.
+//
+// Calling:
+//   - u userEntry: userEntry to check.
+// Output:
+//   - bool: Is u the empty userEntry?
+func (u userEntry) Empty() bool <span class="cov8" title="1">{
+        return u.ID == 0 &amp;&amp; u.Email == "" &amp;&amp; u.Username == "" &amp;&amp; u.PasswordHash == "" &amp;&amp; u.Salt == "" &amp;&amp; u.HashFunc == "" &amp;&amp; u.Permissions == ""
+}</span>
+
+// toUser converts the calling userEntry into a User.
+//
+// Calling:
+//   - u userEntry: Data to convert. Notably, the zero userEntry converts to the zero User.
+// Output:
+//   - User: the resulting public User struct.
+func (u userEntry) toUser() User <span class="cov8" title="1">{
+        outUser := User{
+                Email:       u.Email,
+                Username:    u.Username,
+                Permissions: make(map[string]bool),
+        }
+        json.Unmarshal([]byte(u.Permissions), &amp;outUser.Permissions)
+        return outUser
+}</span>
+
+// Open the database.
+// This MUST be called before any authcred operations take place, and if the path is changed,
+// a different DB will be opened; this is configured under DB.Path in config.yml, and should probably not
+// change unless you have a testing database to use.
+// Only one database can be open at a time.
+//
+// Input:
+//   - path string: Path to the database file
+// Output:
+//   - error: Output if the open fails, or if the userEntry struct changes in a way that prevents migrating the DB.
+//   This most commonly occurs if the path does not exist; gorm can create a new file, but not directories.
+func OpenDB(path string) error <span class="cov8" title="1">{
+        var err error
+        db, err = gorm.Open(sqlite.Open(path), &amp;gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">err = db.AutoMigrate(&amp;userEntry{})
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Get the current number of entries in the database.
+// It's not likely that this has significant use outside of noticing if the user is initializing a new database; to preserve
+// security in this case, the user should be asked to create the first account as an admin account before opening to a network.
+//
+// Output:
+//   - int: Number of entries in the current database
+func Entries() int <span class="cov8" title="1">{
+        entries := make([]userEntry, 0)
+        db.Find(&amp;entries)
+        return len(entries)
+}</span>
+
+// Exported version of findUserEntryByEmail; returns public User instead of userEntry.
+//
+// Input:
+//   - email string: Email to find
+// Output:
+//   - User: User data, or empty user if not found.
+func FindUserByEmail(email string) (User, error) <span class="cov8" title="1">{
+        uentry, err := findUserEntryByEmail(email)
+        if err != nil </span><span class="cov0" title="0">{
+                return User{}, err
+        }</span>
+        <span class="cov8" title="1">return uentry.toUser(), nil</span>
+}
+
+// Exported version of findUserEntryByUsername; returns public User instead of userEntry.
+//
+// Input:
+//   - username string: Username to find
+// Output:
+//   - User: User data, or empty user if not found.
+func FindUserByUsername(username string) (User, error) <span class="cov8" title="1">{
+        uentry, err := findUserEntryByUsername(username)
+        if err != nil </span><span class="cov0" title="0">{
+                return User{}, err
+        }</span>
+        <span class="cov8" title="1">return uentry.toUser(), nil</span>
+}
+
+// Register a user with the given credentials and permissions.
+//
+// Input:
+//   - email, username string: User email/username pair. Both of these values MUST be unique.
+//   - password string: User password. To avoid conflicts with integration, auth imposes no password restrictions; it is
+//   expected that the application manage restrictions such as password length.
+//   - permissions map[string]bool: User permissions. auth only takes advantage of the admin permission; all others are
+//   application-defined.
+// Output:
+//   - error: Any errors that occur during the registration of a user, including: non-unique email/username, failure to generate
+//   password salt, failure to hash password. If an error is returned, no change is made to the database.
+func RegisterUser(email, username string, password string, permissions map[string]bool) error <span class="cov8" title="1">{
+        if user, _ := findUserEntryByEmail(email); user.Email != "" </span><span class="cov8" title="1">{
                 return errors.New("Email is already in use.")
         }</span>
-        <span class="cov8" title="1">if user, _ := findUserByUsername(username); user.Username != "" </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if user, _ := findUserEntryByUsername(username); user.Username != "" </span><span class="cov0" title="0">{
                 return errors.New("Username is already in use.")
         }</span>
-        <span class="cov8" title="1">perm, err := json.Marshal(permissions)
+        <span class="cov8" title="1">perm, _ := json.Marshal(permissions)
         salt, err := genSalt()
         if err != nil </span><span class="cov0" title="0">{
                 return err
@@ -342,7 +259,7 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">entry := &amp;UserEntry{
+        <span class="cov8" title="1">entry := &amp;userEntry{
                 Email:        email,
                 Username:     username,
                 PasswordHash: pwdHash,
@@ -354,41 +271,53 @@ func RegisterUser(email, username, password string, permissions UserPerm) error 
         return nil</span>
 }
 
-// Validate a user with credentials
-// Returns success, user info, and error/nil
-func ValidateUserCred(username, password string) (bool, *User, error) <span class="cov8" title="1">{
+// Validate a user with username and password credentials.
+//
+// Input:
+//   - username, password string: User credentials. The username will be used to find the userEntry, and then the password
+//   will be hashed with that userEntry salt and hash function and compared to the userEntry password.
+// Output:
+//   - bool: Is user valid?
+//   - User: Public user credentials.
+//   - error: Any errors that occur during user validation, including: failure to find user, failure to hash password, failure to validate
+//   user.
+func ValidateUserCred(username, password string) (bool, User, error) <span class="cov8" title="1">{
         // Find user. Fail out if non-eistent
-        user, err := findUserByUsername(username)
+        user, err := findUserEntryByUsername(username)
         if err != nil </span><span class="cov0" title="0">{
-                return false, nil, err
+                return false, User{}, err
         }</span>
         <span class="cov8" title="1">if user.Username == "" </span><span class="cov8" title="1">{
-                return false, nil, fmt.Errorf("User %s not found", username)
+                return false, User{}, fmt.Errorf("User %s not found", username)
         }</span>
         // Check hashed password against input password.
         <span class="cov8" title="1">salt, _ := stringDecode(user.Salt)
         pwdHash, err := slowHash([]byte(password), salt, user.HashFunc)
         if err != nil </span><span class="cov0" title="0">{
-                return false, nil, err
+                return false, User{}, err
         }</span>
         <span class="cov8" title="1">valid := username == user.Username &amp;&amp; pwdHash == user.PasswordHash
         if valid </span><span class="cov8" title="1">{
-                outUser := &amp;User{
-                        Credentials: UserCred{
-                                user.Email,
-                                user.Username,
-                        },
-                        Permissions: make(UserPerm),
+                outUser := User{
+                        Email:       user.Email,
+                        Username:    user.Username,
+                        Permissions: make(map[string]bool),
                 }
                 json.Unmarshal([]byte(user.Permissions), &amp;outUser.Permissions)
                 return true, outUser, nil
         }</span> else<span class="cov8" title="1"> {
-                return false, &amp;User{}, fmt.Errorf("User validation failed")
+                return false, User{}, fmt.Errorf("User validation failed")
         }</span>
 }
 
-// Change user password
-// Returns success and error/nil
+// Validate a user's current credentials, then change their password if they could be validated.
+//
+// Input:
+//   - username, password string: User credentials. See ValidateUserCred.
+//   - newPassword string: New password to set IF the above credentials can be validated.
+// Output:
+//   - error: Any error that occurs when changing user password, including: failure to validate,
+//   user doesn't exist, failure to hash password
 func ChangeUserPassword(username, password string, newPassword string) error <span class="cov8" title="1">{
         valid, _, err := ValidateUserCred(username, password)
         if !valid </span><span class="cov8" title="1">{
@@ -398,13 +327,16 @@ func ChangeUserPassword(username, password string, newPassword string) error <sp
                         return fmt.Errorf("User validation failed")
                 }</span>
         }
-        <span class="cov8" title="1">user, err := findUserByUsername(username)
+        // If the user didn't exist, validation would have failed
+        <span class="cov8" title="1">user, err := findUserEntryByUsername(username)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        // If the user didn't exist, validation would have failed
-        <span class="cov8" title="1">salt, _ := genSalt()
-        pwdHash, err := slowHash([]byte(newPassword), salt, user.HashFunc)
+        <span class="cov8" title="1">salt, err := genSalt()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">pwdHash, err := slowHash([]byte(newPassword), salt, user.HashFunc)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
@@ -413,9 +345,117 @@ func ChangeUserPassword(username, password string, newPassword string) error <sp
         updateUser(&amp;user)
         return nil</span>
 }
+
+// Change user permissions for a given user.
+// This action is generally initiated by an admin or the application server, and not a user; as a result,
+// no password is required for the user.
+//
+// Input:
+//   - username string: Username to alter.
+//   - newPermissions map[string]bool: Full list of new permissions. Overwrites any permissions with the same name.
+// Output:
+//   - error: Any error that occurs while changing permissions, including: user does not exist, failure to marshal
+//   permissions
+func ChangeUserPermissions(username string, newPermissions map[string]bool) error <span class="cov8" title="1">{
+        // Get userEntry. We need the entry ID to update the DB
+        entry, err := findUserEntryByUsername(username)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        // Get the corresponding User. This unmarshals the permissions string in entry so we can change permissions without a full overwrite.
+        <span class="cov8" title="1">user := entry.toUser()
+        // Write every key-value pair from newPermissions to old permissions.
+        for name, value := range newPermissions </span><span class="cov8" title="1">{
+                // It's possible user had no permissions before.
+                if user.Permissions == nil </span><span class="cov8" title="1">{
+                        user.Permissions = make(map[string]bool)
+                }</span>
+                <span class="cov8" title="1">user.Permissions[name] = value</span>
+        }
+        // Re-stringify permissions and update the entry in the database.
+        <span class="cov8" title="1">bytePerms, err := json.Marshal(user.Permissions)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">entry.Permissions = string(bytePerms)
+        updateUser(&amp;entry)
+        return nil</span>
+}
 </pre>
 		
-		<pre class="file" id="file4" style="display: none">package database
+		<pre class="file" id="file1" style="display: none">package credentials
+
+import (
+        "fmt"
+
+        "gorm.io/gorm"
+)
+
+var db *gorm.DB
+
+// Add a userEntry to the database.
+//
+// Input:
+//   - in *userEntry: User entry to add.
+// Output:
+//   - error: Returned if the database is closed.
+func addUser(in *userEntry) error <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("addUser failed; database not open")
+        }</span>
+        <span class="cov8" title="1">db.Create(in)
+        return nil</span>
+}
+
+// Update a userEntry in the database.
+//
+// Input:
+//   - in *userEntry: User entry to alter. GORM manages this operation using primary key, which is the
+//   int id of the entry. Highly suggest you don't try changing that.
+// Output:
+//   - error: Returned if the database is closed.
+func updateUser(in *userEntry) error <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("updateUser failed; database not open")
+        }</span>
+        <span class="cov8" title="1">db.Save(in)
+        return nil</span>
+}
+
+// Find a userEntry in the database by its email.
+//
+// Input:
+//   - find string: Email to find.
+// Output:
+//   - out userEntry: The resulting userEntry.
+//   - err error: Returned if the database is closed.
+func findUserEntryByEmail(find string) (out userEntry, err error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                err = fmt.Errorf("findUser failed; database not open")
+        }</span> else<span class="cov8" title="1"> {
+                db.Where("email = ?", find).First(&amp;out)
+        }</span>
+        <span class="cov8" title="1">return</span>
+}
+
+// Find a userEntry in the database by its username.
+//
+// Input:
+//   - find string: Username to find.
+// Output:
+//   - out userEntry: The resulting userEntry.
+//   - err error: Returned if the database is closed.
+func findUserEntryByUsername(find string) (out userEntry, err error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                err = fmt.Errorf("findUser failed; database not open")
+        }</span> else<span class="cov8" title="1"> {
+                db.Where("Username = ?", find).First(&amp;out)
+        }</span>
+        <span class="cov8" title="1">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package credentials
 
 import (
         "crypto/rand"
@@ -427,37 +467,52 @@ import (
         "github.com/pkg/errors"
 )
 
-// stringEncode shorthands for base64.URLEncoding.EncodeToString
-func stringEncode(b []byte) string <span class="cov8" title="1">{
-        return base64.RawURLEncoding.EncodeToString(b)
-}</span>
+// stringEncode is shorthand for base64.URLEncoding.EncodeToString().
+var stringEncode func([]byte) string = base64.RawURLEncoding.EncodeToString
 
-// stringDecode shorthands base64.URLEncoding.DecodeString
-func stringDecode(s string) ([]byte, error) <span class="cov8" title="1">{
-        return base64.RawURLEncoding.DecodeString(s)
-}</span>
+// stringDecode is shorthand for base64.URLEncoding.DecodeString().
+var stringDecode func(string) ([]byte, error) = base64.RawURLEncoding.DecodeString
 
-// genSalt returns a 64-bit random byte string
+// Creates a length 64 random byte string.
+//
+// Output:
+//   - []byte: Byte string
+//   - error: Currently always nil. Error handling for read/write calls is currently a project-wide issue.
 func genSalt() ([]byte, error) <span class="cov8" title="1">{
         salt := make([]byte, 64)
-        _, err := rand.Read(salt[:])
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
+        bytesRead := 0
+        // Make 3 attempts to generate salt value.
+        for attempts := 0; attempts &lt; 3 &amp;&amp; bytesRead &lt; 64; attempts++ </span><span class="cov8" title="1">{
+                attBytesRead, err := rand.Read(salt[bytesRead:])
+                bytesRead += attBytesRead
+                // We do need to check the error here, but it may not be fatal (EOF). This error handling behavior could be improved.
+                // It is usually OS-related and asks the user to wait for the syscall to be available for random generation,
+                // so if an error occurs and we didn't finish reading to salt, we'll wait for 100ms
+                if err != nil &amp;&amp; bytesRead &lt; 64 </span><span class="cov0" title="0">{
+                        time.Sleep(time.Millisecond * 100)
+                }</span>
+        }
         <span class="cov8" title="1">return salt, nil</span>
 }
 
-const hashRounds int = 65536
+const hashRounds int = 131072 // 2^17
 const minHashMS int = 20
-const maxHashMS int = 0
 
+// hfs is a map of string hash function names to a Go Hash object creator.
+// See slowHash for an example of usage.
 var hfs map[string]func() hash.Hash = map[string]func() hash.Hash{
         "sha512": sha512.New,
 }
 
-// VERY SLOWLY hash pwd using a named hashFunc supported by auth.database, see hfs above
-// Returns hash, salt, error (if occurs)
-// DO NOT call any other hash function.
+// Hashes a byte string VERY SLOWLY with a specific hashfunc supported by hfs.
+// Any private value used in auth MUST be hashed through slowHash.
+//
+// Input:
+//   - pwd, salt byte: Password (or other string) to hash, and the salt to hash it with.
+//   - hashFunc string: Hash function to use. Must be a key in hfs.
+// Output:
+//   - string: Output hashed value
+//   - error: Any error that occurs, including: unsupported hash function
 func slowHash(pwd, salt []byte, hashFunc string) (string, error) <span class="cov8" title="1">{
         // Get hash func. Return error if not supported
         f, ok := hfs[hashFunc]
@@ -473,26 +528,275 @@ func slowHash(pwd, salt []byte, hashFunc string) (string, error) <span class="co
         }</span> else<span class="cov8" title="1"> {
                 pwd_hash = hf.Sum(nil)
         }</span>
-        // Repeatedly hash for hashRounds. Track time to complete.
-        <span class="cov8" title="1">start := time.Now()
-        for i := 0; i &lt; hashRounds; i++ </span><span class="cov8" title="1">{
+        // Repeatedly hash for 2^17 rounds.
+        <span class="cov8" title="1">for i := 0; i &lt; 131072; i++ </span><span class="cov8" title="1">{
                 if _, err := hf.Write(pwd_hash); err != nil </span><span class="cov0" title="0">{
                         return "", err
                 }</span> else<span class="cov8" title="1"> {
                         pwd_hash = hf.Sum(nil)
                 }</span>
         }
-        <span class="cov8" title="1">dur := time.Now().Sub(start).Milliseconds()
-        if dur &lt; int64(minHashMS) </span><span class="cov0" title="0">{
-                return "", errors.Errorf("Hash function with %d rounds took %d ms (min %d). You should increase the number of rounds.", hashRounds, dur, minHashMS)
-        }</span>
-        <span class="cov8" title="1">if dur &gt; int64(maxHashMS) &amp;&amp; maxHashMS &gt; 0 </span><span class="cov0" title="0">{
-                return "", errors.Errorf("Hash function with %d rounds took %d ms (max %d). This is not as bad as being too fast, but may increase latency.", hashRounds, dur, maxHashMS)
-        }</span>
         // Encode using base64URL
         <span class="cov8" title="1">encodedHash := stringEncode(pwd_hash)
         return encodedHash, nil</span>
 }
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">// Package gatecode implements short-term code authentication, as opposed to gatekey's more long-term access.
+//
+// Generally speaking, gatecode should be used in tandem with a separate package capable of remote communication with users.
+// gate provides [pkg/authmail] for this purpose. A regular control flow with gatecode may look like:
+//   email := getUserEmailSomehow()
+//   code := gatecode.NewGateCode(email)
+//   sendEmailToUserSomehow(email, code)
+//   ...
+//   recEmail, recCode := receiveInputFromUserSomehow()
+//   valid := gatecode.ValidateGateCode(recEmail, recCode)
+// gatecode does not currently protect against abandoned codes, so there's a risk of filling up memory.
+package gatecode
+
+import (
+        "math/rand"
+        "time"
+)
+
+// An gateCode stores the email and code needed to validate, in addition to an expiration time.
+type gateCode struct {
+        Email   string
+        Code    string
+        Created time.Time
+        Expires time.Time
+}
+
+// activeCodes maps emails to their respective codes.
+var activeCodes map[string]*gateCode = make(map[string]*gateCode)
+
+// letters contains a list of valid runes used in authorization codes.
+var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+// Generates a ct-length authorization code using all-caps letters.
+//
+// Input:
+//   - ct int: Number of characters to generate
+// Output:
+//   - string: string authorization code
+func genCode(ct int) string <span class="cov8" title="1">{
+        seq := make([]rune, ct)
+        for i := range seq </span><span class="cov8" title="1">{
+                seq[i] = letters[rand.Intn(len(letters))]
+        }</span>
+        <span class="cov8" title="1">return string(seq)</span>
+}
+
+// Generates a new authorization code, and stores it in memory for checking later.
+//
+// Input:
+//   - email string: Output code will be attached to this email. See authmail for how mail is sent.
+// Output:
+//   - string: string authorization code.
+func NewGateCode(email string) string <span class="cov8" title="1">{
+        now := time.Now()
+        newCode := &amp;gateCode{
+                Email:   email,
+                Code:    genCode(6),
+                Created: now,
+                Expires: now.Add(time.Minute * 5),
+        }
+        activeCodes[email] = newCode
+        return newCode.Code
+}</span>
+
+// Validates a given authorization code against an email.
+//
+// Input:
+//   - email, code string: Both the email and code must match records.
+// Output:
+//   - bool: Represents code validity. true if code correct and unexpired, false if email incorrect, code incorrect, or expired.
+func ValidateGateCode(email, code string) bool <span class="cov8" title="1">{
+        storedCode, ok := activeCodes[email]
+        if !ok </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">if storedCode.Code == code &amp;&amp; storedCode.Expires.After(time.Now()) </span><span class="cov8" title="1">{
+                delete(activeCodes, email)
+                return true
+        }</span> else<span class="cov8" title="1"> {
+                delete(activeCodes, email)
+                return false
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package gatekey
+
+import (
+        "crypto/hmac"
+        "crypto/sha256"
+        "encoding/base64"
+        "encoding/json"
+        "strings"
+        "time"
+)
+
+// jwtHeader: `auth` treats these as constants.
+type GateKeyHeader struct {
+        Algorithm string `json:"alg"`
+        Type      string `json:"typ"`
+}
+
+// jwtBody: Token claims. All are registered except access, which is private.
+type GateKeyBody struct {
+        Issuer      string          `json:"iss"`
+        ForUser     string          `json:"sub"`
+        Permissions map[string]bool `json:"permissions"`
+        Created     int64           `json:"iat"`
+        Expires     int64           `json:"exp"`
+}
+
+// Gate key structure.
+// GateKeys are a valid JWT struct, and can be exported/validated as one.
+type GateKey struct {
+        Header GateKeyHeader
+        Body   GateKeyBody
+}
+
+// Generate a new GateKey.
+//
+// Input:
+//   - username string: Attaches this key to a specific user.
+//   - permissions map[string]bool: Represents the user permissions that this key grants
+//   - expiry time.Duration: A *duration* for how long the token should last.
+// Output:
+//   - *jwt
+func NewGateKey(username string, permissions map[string]bool, expiry time.Duration) *GateKey <span class="cov8" title="1">{
+        return &amp;GateKey{
+                GateKeyHeader{
+                        Algorithm: "sha256",
+                        Type:      "jwt",
+                },
+                GateKeyBody{
+                        Issuer:      "auth",
+                        ForUser:     username,
+                        Permissions: permissions,
+                        Created:     time.Now().Unix(),
+                        Expires:     time.Now().Add(expiry).Unix(),
+                },
+        }
+}</span>
+
+// Export a GateKey.
+// This and Verify are inverse operations; the same secret MUST be used in both for correct results.
+//
+// Input:
+//   - key *GateKey: Key to export. Should be non-nil.
+//   - secret []byte: Signing secret.
+// Output:
+//   - string: Exported key
+func Export(key *GateKey, secret []byte) string <span class="cov8" title="1">{
+        h := hmac.New(sha256.New, secret)
+        // Marshal and encode the JWT header/body separately
+        head, _ := json.Marshal(key.Header)
+        headStr := base64.RawURLEncoding.EncodeToString(head)
+        body, _ := json.Marshal(key.Body)
+        bodyStr := base64.RawURLEncoding.EncodeToString(body)
+        // Write head.body to the hashing algorithm
+        h.Write([]byte(
+                headStr + "." + bodyStr,
+        ))
+        // Get the signature from the hash
+        signature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+        // Concatenate head.body.signature
+        return headStr + "." + bodyStr + "." + signature
+}</span>
+
+// Verify an exported GateKey.
+// This and Export are inverse operations; the same secret MUST be used in both for correct results.
+// Notably, this returns a bool representing validity AND an error. The error does not represent the state
+// of the token, but any error that occured during validation. It is recommended that when checking if the
+// result of Verify, if the bool output is false, that the error also be checked for a reason; if the error
+// is nil, then the token has a valid format but is either not signed correctly or expired.
+//
+// Input:
+//   - token string: Exported GateKey.
+//   - secret []byte: Signing secret.
+// Output:
+//   - *GateKey: Resulting GateKey. nil if verification failed.
+//   - bool: Is token valid?
+//   - error: Any error that occurs during verification.
+func Verify(token string, secret []byte) (*GateKey, bool, error) <span class="cov8" title="1">{
+        items := strings.Split(token, ".")
+        // Unmarshal and decode the JWT
+        key := &amp;GateKey{}
+        head, err := base64.RawURLEncoding.DecodeString(items[0])
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        <span class="cov8" title="1">err = json.Unmarshal([]byte(head), &amp;(key.Header))
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        <span class="cov8" title="1">body, err := base64.RawURLEncoding.DecodeString(items[1])
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        <span class="cov8" title="1">err = json.Unmarshal([]byte(body), &amp;(key.Body))
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, false, err
+        }</span>
+        // Re-export the resulting key; should result in the exact same output
+        <span class="cov8" title="1">expected := Export(key, secret)
+        // Return verification eval result and new token
+        expired := key.Body.Expires &lt; time.Now().Unix()
+        return key, token == expected &amp;&amp; !expired, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package mail
+
+import (
+        "fmt"
+        "net/smtp"
+)
+
+// struct Host holds host data for sending SMTP through SES.
+type Host struct {
+        Username string
+        Password string
+        Host     string
+        Port     int
+        Sender   string
+}
+
+// Generate a PlainAuth to use with smtp.SendMail using host info
+func (h Host) plainAuth() smtp.Auth <span class="cov8" title="1">{
+        return smtp.PlainAuth("", h.Username, h.Password, h.Host)
+}</span>
+
+// Generate an address for smtp.SendMail
+func (h Host) address() string <span class="cov8" title="1">{
+        return fmt.Sprintf("%s:%d", h.Host, h.Port)
+}</span>
+
+// Generate a new authentication message given a target email and authentication code.
+func NewAuthMessage(sendTo string, authCode string) []byte <span class="cov8" title="1">{
+        msg := fmt.Sprintf(
+                "To: %s\r\n"+
+                        "Subject: Authentication Code\r\n"+
+                        "\r\n"+
+                        "Your authentication code is %s.\n"+
+                        "This code will expire in 1 minute.\r\n",
+                sendTo, authCode,
+        )
+        return []byte(msg)
+}</span>
+
+// Use smtp to send a message through the target SES host
+func SendMessage(sendFrom Host, sendTo string, msg []byte) error <span class="cov8" title="1">{
+        auth := sendFrom.plainAuth()
+        target := []string{sendTo}
+        addr := sendFrom.address()
+        return smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
+}</span>
 </pre>
 		
 		</div>

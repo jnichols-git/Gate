@@ -1,4 +1,4 @@
-package authserver
+package server
 
 import (
 	"errors"

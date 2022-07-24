@@ -1,4 +1,4 @@
-package authmail
+package mail
 
 import (
 	"os"
