@@ -1,4 +1,4 @@
-# Contributing to Auth
+# Contributing to Gate
 
 There are three main things you can do to help with the development of this project:
 
@@ -8,12 +8,12 @@ There are three main things you can do to help with the development of this proj
 
 ## Testing
 
-auth is currently lacking testing in real-world situations; if you're interested in using the project
+Gate is currently lacking testing in real-world situations; if you're interested in using the project
 in the future, testing the server and how it functions in a non-production environment would be very helpful.
 
 ## Issue Tracker
 
-auth uses GitHub Issues for tracking user feedback, feature requests, and bugs. If you find any of those things,
+Gate uses GitHub Issues for tracking user feedback, feature requests, and bugs. If you find any of those things,
 please put in an issue and the developers will get to it as soon as possible! You may also be assigned to issues
 on request.
 

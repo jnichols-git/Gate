@@ -1,4 +1,4 @@
-# pkg/authjwt
+# pkg/gatekey
 
 The `jwt` package implements basic usage of JSON Web Tokens to maintain authentication for server-side verification
 without explicit states or password storage. If you want to know more about how this works, [jwt.io](jwt.io) does a

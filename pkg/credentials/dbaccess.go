@@ -1,4 +1,4 @@
-package authcred
+package credentials
 
 import (
 	"fmt"

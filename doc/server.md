@@ -1,14 +1,14 @@
-# pkg/authserver
+# pkg/server
 
-`authserver` ties the rest of the `auth` packages together as an https-accessible API for user verification.
+`gateserver` ties the rest of the `gate` packages together as an https-accessible API for user verification.
 
 ---
-## Auth Dashboard
+## Gate Dashboard
 ---
 
-As part of the `authserver` package, the Dashboard provides a place to check the health of your server,
+As part of the `server` package, the Dashboard provides a place to check the health of your server,
 download logs, and set permissions for certain users (banned, admin, etc.). You can access your dashboard
-from `https://auth.[domain]/dashboard`.
+from `https://gate.[domain]/dashboard`.
 
 ### SMTP Configuration
 
@@ -21,14 +21,14 @@ working.
 
 ### Database Configuration
 
-auth currently uses a local database through [gorm](https://github.com/go-gorm/gorm), a developer-friendly
+Gate currently uses a local database through [gorm](https://github.com/go-gorm/gorm), a developer-friendly
 Object-Relational Mapping library for Go. The database is implemented using sqlite, with a configuration option
 for the path to the database (default `dat/database/auth.db`). More configuration is planned for future updates
 regarding networked implementations and other SQL databases.
 
 ### TLS Certificate
 
-The dashboard, on each refresh, will attempt to connect to `auth.domain` using TLS; the icon next to
+The dashboard, on each refresh, will attempt to connect to `gate.domain` using TLS; the icon next to
 TLS Certificate: indicates if this attempt is successful. The dashboard will additionally describe the error
 if one occurs.
 
@@ -38,22 +38,22 @@ The dashboard can upload a `.crt` and `.key` file for TLS.
 ## API Specification
 ---
 
-The `auth` api will be deployed as a subdomain `auth`. Initial setup will provide (TODO) provide an API key. For an application
-with domain `domain.com`, requests should be main to `auth.domain.com` using header authorization `x-api-key: [key]`
+The `gate` api will be deployed as a subdomain `gate`. Initial setup will provide (TODO) provide an API key. For an application
+with domain `domain.com`, requests should be main to `gate.domain.com` using header authorization `x-api-key: [key]`
 as specified below.
 
 ### Authentication
 
-Authentication endpoints take a JSON object, defined in `authserver.go` as AuthRequestBody. Possible arguments
+Authentication endpoints take a JSON object, defined in `server.go` as AuthRequestBody. Possible arguments
 are kept strictly defined in this way to avoid reading extraneous data. Possible fields are:
 
 - `email` (string) (validated server-side)
 - `username` (string)
 - `password` (string)
 - `newPassword` (string)
-- `authCode` (string)
+- `gateCode` (string)
 - `getToken` (bool)
-- `authToken` (string): authentication token from prior email authentication
+- `gateKey` (string): gate key from prior email or credential authentication
 
 Each field behaves differently depending on which endpoint is being called. Any field not listed for an endpoint
 will not be used; preferably they should not be included in queries.
@@ -90,19 +90,19 @@ will not be used; preferably they should not be included in queries.
     - Responses
         - `200 OK`: Email was successfully *sent*. Golang SMTP does not throw on email bounce/complaint; response `200` does not guarantee successful delivery.
         - `400 Bad Request`: Request was poorly-formed; see contents for error information.
-- POST `/code`: Validates `authCode` for `email`
+- POST `/code`: Validates `gateCode` for `email`
     - Parameters
         - `email`: Email address to which the authentication code was sent
-        - `authCode`: Received validation code
+        - `gateCode`: Received validation code
         - `getToken` (optional): Whether to return a JWS cookie representing successful sign on
     - Responses
-        - `200 OK`:  `authCode` was valid. If `getToken`, body contains a bearer token.
+        - `200 OK`:  `gateCode` was valid. If `getToken`, body contains a bearer token.
         - `400 Bad Request`: Request was poorly-formed; see contents for error information.
-        - `401 Unauthorized`: Authorization failed due to incorrect or expired `authCode`.
-- POST `/token`: Validates `authToken`
+        - `401 Unauthorized`: Authorization failed due to incorrect or expired `gateCode`.
+- POST `/key`: Validates `gateKey`
     - Parameters
-        - `authToken`: Authentication token
+        - `gateKey`: Gate key provided with earlier authentication
     - Responses
-        - `200 OK`:  `authToken` was valid (signed by server and unmodified). Body contains the decoded contents of `authToken`.
+        - `200 OK`:  `gateKey` was valid (signed by server and unmodified). Body contains the decoded contents of `gateKeyToken`.
         - `400 Bad Request`: Request was poorly-formed; see contents for error information.
-        - `401 Unauthorized`: Authorization failed due to incorrect or expired `authToken`.
+        - `401 Unauthorized`: Authorization failed due to incorrect or expired `gateKey`.

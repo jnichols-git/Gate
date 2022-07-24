@@ -1,4 +1,4 @@
-# pkg/authmail
+# pkg/mail
 
 The `authmail` package gives email functionality to `auth`.
 

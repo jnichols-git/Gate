@@ -1,23 +1,23 @@
-// Package authcode implements short-term code authentication.
+// Package gatecode implements short-term code authentication, as opposed to gatekey's more long-term access.
 //
-// Generally speaking, authcode should be used in tandem with a separate package capable of remote communication with users.
-// auth provides [pkg/authmail] for this purpose. A regular control flow with authcode may look like:
+// Generally speaking, gatecode should be used in tandem with a separate package capable of remote communication with users.
+// gate provides [pkg/authmail] for this purpose. A regular control flow with gatecode may look like:
 //   email := getUserEmailSomehow()
-//   code := authcode.NewAuthCode(email)
+//   code := gatecode.NewGateCode(email)
 //   sendEmailToUserSomehow(email, code)
 //   ...
 //   recEmail, recCode := receiveInputFromUserSomehow()
-//   valid := authcode.ValidateAuthCode(recEmail, recCode)
-// authcode does not currently protect against abandoned codes, so there's a risk of filling up memory.
-package authcode
+//   valid := gatecode.ValidateGateCode(recEmail, recCode)
+// gatecode does not currently protect against abandoned codes, so there's a risk of filling up memory.
+package gatecode
 
 import (
 	"math/rand"
 	"time"
 )
 
-// An authorizationCode stores the email and code needed to validate, in addition to an expiration time.
-type authorizationCode struct {
+// An gateCode stores the email and code needed to validate, in addition to an expiration time.
+type gateCode struct {
 	Email   string
 	Code    string
 	Created time.Time
@@ -25,7 +25,7 @@ type authorizationCode struct {
 }
 
 // activeCodes maps emails to their respective codes.
-var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCode)
+var activeCodes map[string]*gateCode = make(map[string]*gateCode)
 
 // letters contains a list of valid runes used in authorization codes.
 var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -50,9 +50,9 @@ func genCode(ct int) string {
 //   - email string: Output code will be attached to this email. See authmail for how mail is sent.
 // Output:
 //   - string: string authorization code.
-func NewAuthCode(email string) string {
+func NewGateCode(email string) string {
 	now := time.Now()
-	newCode := &authorizationCode{
+	newCode := &gateCode{
 		Email:   email,
 		Code:    genCode(6),
 		Created: now,
@@ -68,7 +68,7 @@ func NewAuthCode(email string) string {
 //   - email, code string: Both the email and code must match records.
 // Output:
 //   - bool: Represents code validity. true if code correct and unexpired, false if email incorrect, code incorrect, or expired.
-func ValidateAuthCode(email, code string) bool {
+func ValidateGateCode(email, code string) bool {
 	storedCode, ok := activeCodes[email]
 	if !ok {
 		return false

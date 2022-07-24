@@ -3,7 +3,7 @@
 <html>
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>authcode: Go Coverage Report</title>
+		<title>credentials: Go Coverage Report</title>
 		<style>
 			body {
 				background: black;
@@ -55,15 +55,17 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">auth/pkg/authcode/authcode.go (100.0%)</option>
+				<option value="file0">auth/pkg/credentials/credentials.go (82.4%)</option>
 				
-				<option value="file1">auth/pkg/authcred/access.go (100.0%)</option>
+				<option value="file1">auth/pkg/credentials/dbaccess.go (100.0%)</option>
 				
-				<option value="file2">auth/pkg/authcred/authcred.go (82.4%)</option>
+				<option value="file2">auth/pkg/credentials/hashing.go (82.6%)</option>
 				
-				<option value="file3">auth/pkg/authcred/hashing.go (82.6%)</option>
+				<option value="file3">auth/pkg/gatecode/gatecode.go (100.0%)</option>
 				
-				<option value="file4">auth/pkg/authjwt/authjwt.go (100.0%)</option>
+				<option value="file4">auth/pkg/gatekey/gatekey.go (100.0%)</option>
+				
+				<option value="file5">auth/pkg/mail/authmail.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -77,164 +79,7 @@
 		</div>
 		<div id="content">
 		
-		<pre class="file" id="file0" style="display: none">// Package authcode implements short-term code authentication.
-//
-// Generally speaking, authcode should be used in tandem with a separate package capable of remote communication with users.
-// auth provides [pkg/authmail] for this purpose. A regular control flow with authcode may look like:
-//   email := getUserEmailSomehow()
-//   code := authcode.NewAuthCode(email)
-//   sendEmailToUserSomehow(email, code)
-//   ...
-//   recEmail, recCode := receiveInputFromUserSomehow()
-//   valid := authcode.ValidateAuthCode(recEmail, recCode)
-// authcode does not currently protect against abandoned codes, so there's a risk of filling up memory.
-package authcode
-
-import (
-        "math/rand"
-        "time"
-)
-
-// An authorizationCode stores the email and code needed to validate, in addition to an expiration time.
-type authorizationCode struct {
-        Email   string
-        Code    string
-        Created time.Time
-        Expires time.Time
-}
-
-// activeCodes maps emails to their respective codes.
-var activeCodes map[string]*authorizationCode = make(map[string]*authorizationCode)
-
-// letters contains a list of valid runes used in authorization codes.
-var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-// Generates a ct-length authorization code using all-caps letters.
-//
-// Input:
-//   - ct int: Number of characters to generate
-// Output:
-//   - string: string authorization code
-func genCode(ct int) string <span class="cov8" title="1">{
-        seq := make([]rune, ct)
-        for i := range seq </span><span class="cov8" title="1">{
-                seq[i] = letters[rand.Intn(len(letters))]
-        }</span>
-        <span class="cov8" title="1">return string(seq)</span>
-}
-
-// Generates a new authorization code, and stores it in memory for checking later.
-//
-// Input:
-//   - email string: Output code will be attached to this email. See authmail for how mail is sent.
-// Output:
-//   - string: string authorization code.
-func NewAuthCode(email string) string <span class="cov8" title="1">{
-        now := time.Now()
-        newCode := &amp;authorizationCode{
-                Email:   email,
-                Code:    genCode(6),
-                Created: now,
-                Expires: now.Add(time.Minute * 5),
-        }
-        activeCodes[email] = newCode
-        return newCode.Code
-}</span>
-
-// Validates a given authorization code against an email.
-//
-// Input:
-//   - email, code string: Both the email and code must match records.
-// Output:
-//   - bool: Represents code validity. true if code correct and unexpired, false if email incorrect, code incorrect, or expired.
-func ValidateAuthCode(email, code string) bool <span class="cov8" title="1">{
-        storedCode, ok := activeCodes[email]
-        if !ok </span><span class="cov8" title="1">{
-                return false
-        }</span>
-        <span class="cov8" title="1">if storedCode.Code == code &amp;&amp; storedCode.Expires.After(time.Now()) </span><span class="cov8" title="1">{
-                delete(activeCodes, email)
-                return true
-        }</span> else<span class="cov8" title="1"> {
-                delete(activeCodes, email)
-                return false
-        }</span>
-}
-</pre>
-		
-		<pre class="file" id="file1" style="display: none">package authcred
-
-import (
-        "fmt"
-
-        "gorm.io/gorm"
-)
-
-var db *gorm.DB
-
-// Add a userEntry to the database.
-//
-// Input:
-//   - in *userEntry: User entry to add.
-// Output:
-//   - error: Returned if the database is closed.
-func addUser(in *userEntry) error <span class="cov8" title="1">{
-        if db == nil </span><span class="cov8" title="1">{
-                return fmt.Errorf("addUser failed; database not open")
-        }</span>
-        <span class="cov8" title="1">db.Create(in)
-        return nil</span>
-}
-
-// Update a userEntry in the database.
-//
-// Input:
-//   - in *userEntry: User entry to alter. GORM manages this operation using primary key, which is the
-//   int id of the entry. Highly suggest you don't try changing that.
-// Output:
-//   - error: Returned if the database is closed.
-func updateUser(in *userEntry) error <span class="cov8" title="1">{
-        if db == nil </span><span class="cov8" title="1">{
-                return fmt.Errorf("updateUser failed; database not open")
-        }</span>
-        <span class="cov8" title="1">db.Save(in)
-        return nil</span>
-}
-
-// Find a userEntry in the database by its email.
-//
-// Input:
-//   - find string: Email to find.
-// Output:
-//   - out userEntry: The resulting userEntry.
-//   - err error: Returned if the database is closed.
-func findUserEntryByEmail(find string) (out userEntry, err error) <span class="cov8" title="1">{
-        if db == nil </span><span class="cov8" title="1">{
-                err = fmt.Errorf("findUser failed; database not open")
-        }</span> else<span class="cov8" title="1"> {
-                db.Where("email = ?", find).First(&amp;out)
-        }</span>
-        <span class="cov8" title="1">return</span>
-}
-
-// Find a userEntry in the database by its username.
-//
-// Input:
-//   - find string: Username to find.
-// Output:
-//   - out userEntry: The resulting userEntry.
-//   - err error: Returned if the database is closed.
-func findUserEntryByUsername(find string) (out userEntry, err error) <span class="cov8" title="1">{
-        if db == nil </span><span class="cov8" title="1">{
-                err = fmt.Errorf("findUser failed; database not open")
-        }</span> else<span class="cov8" title="1"> {
-                db.Where("Username = ?", find).First(&amp;out)
-        }</span>
-        <span class="cov8" title="1">return</span>
-}
-</pre>
-		
-		<pre class="file" id="file2" style="display: none">// Package authcred handles the authentication of users using username-password pairs
+		<pre class="file" id="file0" style="display: none">// Package credentials handles the authentication of users using username-password pairs
 // Each user is stored as a userEntry in a local database. The database columns are defined
 // by the userEntry struct, so they appear as seen below:
 //   +----+-------+----------+---------------+------+---------------+-------------+
@@ -244,12 +89,12 @@ func findUserEntryByUsername(find string) (out userEntry, err error) <span class
 // with supporting functions ChangeUserPassword() and ChangeUserPermissions() to alter the
 // data of already-existing users in the database.
 //
-// authcred exports the User type, which contains the same data as userEntry with private data
+// credentials exports the User type, which contains the same data as userEntry with private data
 // (password hash, salt, hash func, internal ID) removed. ValidateUserCred() returns one, so that
 // when the authentication API is called, it returns back information about the user in a format
 // that can easily pass back to the application servers or converted into a token without exposing
 // important data.
-package authcred
+package credentials
 
 import (
         "encoding/json"
@@ -538,7 +383,79 @@ func ChangeUserPermissions(username string, newPermissions map[string]bool) erro
 }
 </pre>
 		
-		<pre class="file" id="file3" style="display: none">package authcred
+		<pre class="file" id="file1" style="display: none">package credentials
+
+import (
+        "fmt"
+
+        "gorm.io/gorm"
+)
+
+var db *gorm.DB
+
+// Add a userEntry to the database.
+//
+// Input:
+//   - in *userEntry: User entry to add.
+// Output:
+//   - error: Returned if the database is closed.
+func addUser(in *userEntry) error <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("addUser failed; database not open")
+        }</span>
+        <span class="cov8" title="1">db.Create(in)
+        return nil</span>
+}
+
+// Update a userEntry in the database.
+//
+// Input:
+//   - in *userEntry: User entry to alter. GORM manages this operation using primary key, which is the
+//   int id of the entry. Highly suggest you don't try changing that.
+// Output:
+//   - error: Returned if the database is closed.
+func updateUser(in *userEntry) error <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("updateUser failed; database not open")
+        }</span>
+        <span class="cov8" title="1">db.Save(in)
+        return nil</span>
+}
+
+// Find a userEntry in the database by its email.
+//
+// Input:
+//   - find string: Email to find.
+// Output:
+//   - out userEntry: The resulting userEntry.
+//   - err error: Returned if the database is closed.
+func findUserEntryByEmail(find string) (out userEntry, err error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                err = fmt.Errorf("findUser failed; database not open")
+        }</span> else<span class="cov8" title="1"> {
+                db.Where("email = ?", find).First(&amp;out)
+        }</span>
+        <span class="cov8" title="1">return</span>
+}
+
+// Find a userEntry in the database by its username.
+//
+// Input:
+//   - find string: Username to find.
+// Output:
+//   - out userEntry: The resulting userEntry.
+//   - err error: Returned if the database is closed.
+func findUserEntryByUsername(find string) (out userEntry, err error) <span class="cov8" title="1">{
+        if db == nil </span><span class="cov8" title="1">{
+                err = fmt.Errorf("findUser failed; database not open")
+        }</span> else<span class="cov8" title="1"> {
+                db.Where("Username = ?", find).First(&amp;out)
+        }</span>
+        <span class="cov8" title="1">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package credentials
 
 import (
         "crypto/rand"
@@ -556,7 +473,11 @@ var stringEncode func([]byte) string = base64.RawURLEncoding.EncodeToString
 // stringDecode is shorthand for base64.URLEncoding.DecodeString().
 var stringDecode func(string) ([]byte, error) = base64.RawURLEncoding.DecodeString
 
-// genSalt returns a 64-bit random byte string
+// Creates a length 64 random byte string.
+//
+// Output:
+//   - []byte: Byte string
+//   - error: Currently always nil. Error handling for read/write calls is currently a project-wide issue.
 func genSalt() ([]byte, error) <span class="cov8" title="1">{
         salt := make([]byte, 64)
         bytesRead := 0
@@ -564,7 +485,7 @@ func genSalt() ([]byte, error) <span class="cov8" title="1">{
         for attempts := 0; attempts &lt; 3 &amp;&amp; bytesRead &lt; 64; attempts++ </span><span class="cov8" title="1">{
                 attBytesRead, err := rand.Read(salt[bytesRead:])
                 bytesRead += attBytesRead
-                // We do need to check the error here, but it may not be fatal (EOF). This behavior could be improved.
+                // We do need to check the error here, but it may not be fatal (EOF). This error handling behavior could be improved.
                 // It is usually OS-related and asks the user to wait for the syscall to be available for random generation,
                 // so if an error occurs and we didn't finish reading to salt, we'll wait for 100ms
                 if err != nil &amp;&amp; bytesRead &lt; 64 </span><span class="cov0" title="0">{
@@ -621,7 +542,92 @@ func slowHash(pwd, salt []byte, hashFunc string) (string, error) <span class="co
 }
 </pre>
 		
-		<pre class="file" id="file4" style="display: none">package authjwt
+		<pre class="file" id="file3" style="display: none">// Package gatecode implements short-term code authentication, as opposed to gatekey's more long-term access.
+//
+// Generally speaking, gatecode should be used in tandem with a separate package capable of remote communication with users.
+// gate provides [pkg/authmail] for this purpose. A regular control flow with gatecode may look like:
+//   email := getUserEmailSomehow()
+//   code := gatecode.NewGateCode(email)
+//   sendEmailToUserSomehow(email, code)
+//   ...
+//   recEmail, recCode := receiveInputFromUserSomehow()
+//   valid := gatecode.ValidateGateCode(recEmail, recCode)
+// gatecode does not currently protect against abandoned codes, so there's a risk of filling up memory.
+package gatecode
+
+import (
+        "math/rand"
+        "time"
+)
+
+// An gateCode stores the email and code needed to validate, in addition to an expiration time.
+type gateCode struct {
+        Email   string
+        Code    string
+        Created time.Time
+        Expires time.Time
+}
+
+// activeCodes maps emails to their respective codes.
+var activeCodes map[string]*gateCode = make(map[string]*gateCode)
+
+// letters contains a list of valid runes used in authorization codes.
+var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+// Generates a ct-length authorization code using all-caps letters.
+//
+// Input:
+//   - ct int: Number of characters to generate
+// Output:
+//   - string: string authorization code
+func genCode(ct int) string <span class="cov8" title="1">{
+        seq := make([]rune, ct)
+        for i := range seq </span><span class="cov8" title="1">{
+                seq[i] = letters[rand.Intn(len(letters))]
+        }</span>
+        <span class="cov8" title="1">return string(seq)</span>
+}
+
+// Generates a new authorization code, and stores it in memory for checking later.
+//
+// Input:
+//   - email string: Output code will be attached to this email. See authmail for how mail is sent.
+// Output:
+//   - string: string authorization code.
+func NewGateCode(email string) string <span class="cov8" title="1">{
+        now := time.Now()
+        newCode := &amp;gateCode{
+                Email:   email,
+                Code:    genCode(6),
+                Created: now,
+                Expires: now.Add(time.Minute * 5),
+        }
+        activeCodes[email] = newCode
+        return newCode.Code
+}</span>
+
+// Validates a given authorization code against an email.
+//
+// Input:
+//   - email, code string: Both the email and code must match records.
+// Output:
+//   - bool: Represents code validity. true if code correct and unexpired, false if email incorrect, code incorrect, or expired.
+func ValidateGateCode(email, code string) bool <span class="cov8" title="1">{
+        storedCode, ok := activeCodes[email]
+        if !ok </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">if storedCode.Code == code &amp;&amp; storedCode.Expires.After(time.Now()) </span><span class="cov8" title="1">{
+                delete(activeCodes, email)
+                return true
+        }</span> else<span class="cov8" title="1"> {
+                delete(activeCodes, email)
+                return false
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package gatekey
 
 import (
         "crypto/hmac"
@@ -632,51 +638,66 @@ import (
         "time"
 )
 
-// JWTHeader: `auth` treats these as constants.
-type JWTHeader struct {
+// jwtHeader: `auth` treats these as constants.
+type GateKeyHeader struct {
         Algorithm string `json:"alg"`
         Type      string `json:"typ"`
 }
 
-// JWTBody: Token claims. All are registered except access, which is private.
-type JWTBody struct {
-        Issuer  string          `json:"iss"`
-        ForUser string          `json:"sub"`
-        Access  map[string]bool `json:"access"`
-        Created int64           `json:"iat"`
-        Expires int64           `json:"exp"`
+// jwtBody: Token claims. All are registered except access, which is private.
+type GateKeyBody struct {
+        Issuer      string          `json:"iss"`
+        ForUser     string          `json:"sub"`
+        Permissions map[string]bool `json:"permissions"`
+        Created     int64           `json:"iat"`
+        Expires     int64           `json:"exp"`
 }
 
-// JSON Web Token structure combining the above.
-type JSONWebToken struct {
-        Header JWTHeader
-        Body   JWTBody
+// Gate key structure.
+// GateKeys are a valid JWT struct, and can be exported/validated as one.
+type GateKey struct {
+        Header GateKeyHeader
+        Body   GateKeyBody
 }
 
-// Create a new JWT based on a user email and access tag
-func NewJWT(user string, access map[string]bool, expiry time.Duration) *JSONWebToken <span class="cov8" title="1">{
-        return &amp;JSONWebToken{
-                JWTHeader{
+// Generate a new GateKey.
+//
+// Input:
+//   - username string: Attaches this key to a specific user.
+//   - permissions map[string]bool: Represents the user permissions that this key grants
+//   - expiry time.Duration: A *duration* for how long the token should last.
+// Output:
+//   - *jwt
+func NewGateKey(username string, permissions map[string]bool, expiry time.Duration) *GateKey <span class="cov8" title="1">{
+        return &amp;GateKey{
+                GateKeyHeader{
                         Algorithm: "sha256",
                         Type:      "jwt",
                 },
-                JWTBody{
-                        Issuer:  "auth",
-                        ForUser: user,
-                        Access:  access,
-                        Created: time.Now().Unix(),
-                        Expires: time.Now().Add(1 * time.Hour).Unix(),
+                GateKeyBody{
+                        Issuer:      "auth",
+                        ForUser:     username,
+                        Permissions: permissions,
+                        Created:     time.Now().Unix(),
+                        Expires:     time.Now().Add(expiry).Unix(),
                 },
         }
 }</span>
 
-// Export a JSONWebToken using a given secret
-func Export(t *JSONWebToken, secret []byte) string <span class="cov8" title="1">{
+// Export a GateKey.
+// This and Verify are inverse operations; the same secret MUST be used in both for correct results.
+//
+// Input:
+//   - key *GateKey: Key to export. Should be non-nil.
+//   - secret []byte: Signing secret.
+// Output:
+//   - string: Exported key
+func Export(key *GateKey, secret []byte) string <span class="cov8" title="1">{
         h := hmac.New(sha256.New, secret)
         // Marshal and encode the JWT header/body separately
-        head, _ := json.Marshal(t.Header)
+        head, _ := json.Marshal(key.Header)
         headStr := base64.RawURLEncoding.EncodeToString(head)
-        body, _ := json.Marshal(t.Body)
+        body, _ := json.Marshal(key.Body)
         bodyStr := base64.RawURLEncoding.EncodeToString(body)
         // Write head.body to the hashing algorithm
         h.Write([]byte(
@@ -688,16 +709,29 @@ func Export(t *JSONWebToken, secret []byte) string <span class="cov8" title="1">
         return headStr + "." + bodyStr + "." + signature
 }</span>
 
-// Verify that a token string is unaltered, unexpired, and signed with the given secret
-func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span class="cov8" title="1">{
+// Verify an exported GateKey.
+// This and Export are inverse operations; the same secret MUST be used in both for correct results.
+// Notably, this returns a bool representing validity AND an error. The error does not represent the state
+// of the token, but any error that occured during validation. It is recommended that when checking if the
+// result of Verify, if the bool output is false, that the error also be checked for a reason; if the error
+// is nil, then the token has a valid format but is either not signed correctly or expired.
+//
+// Input:
+//   - token string: Exported GateKey.
+//   - secret []byte: Signing secret.
+// Output:
+//   - *GateKey: Resulting GateKey. nil if verification failed.
+//   - bool: Is token valid?
+//   - error: Any error that occurs during verification.
+func Verify(token string, secret []byte) (*GateKey, bool, error) <span class="cov8" title="1">{
         items := strings.Split(token, ".")
         // Unmarshal and decode the JWT
-        jwt := &amp;JSONWebToken{}
+        key := &amp;GateKey{}
         head, err := base64.RawURLEncoding.DecodeString(items[0])
         if err != nil </span><span class="cov8" title="1">{
                 return nil, false, err
         }</span>
-        <span class="cov8" title="1">err = json.Unmarshal([]byte(head), &amp;(jwt.Header))
+        <span class="cov8" title="1">err = json.Unmarshal([]byte(head), &amp;(key.Header))
         if err != nil </span><span class="cov8" title="1">{
                 return nil, false, err
         }</span>
@@ -705,16 +739,64 @@ func Verify(token string, secret []byte) (*JSONWebToken, bool, error) <span clas
         if err != nil </span><span class="cov8" title="1">{
                 return nil, false, err
         }</span>
-        <span class="cov8" title="1">err = json.Unmarshal([]byte(body), &amp;(jwt.Body))
+        <span class="cov8" title="1">err = json.Unmarshal([]byte(body), &amp;(key.Body))
         if err != nil </span><span class="cov8" title="1">{
                 return nil, false, err
         }</span>
-        // Re-export the resulting jwt; should result in the exact same output
-        <span class="cov8" title="1">expected := Export(jwt, secret)
+        // Re-export the resulting key; should result in the exact same output
+        <span class="cov8" title="1">expected := Export(key, secret)
         // Return verification eval result and new token
-        expired := jwt.Body.Expires &lt; time.Now().Unix()
-        return jwt, token == expected &amp;&amp; !expired, nil</span>
+        expired := key.Body.Expires &lt; time.Now().Unix()
+        return key, token == expected &amp;&amp; !expired, nil</span>
 }
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package mail
+
+import (
+        "fmt"
+        "net/smtp"
+)
+
+// struct Host holds host data for sending SMTP through SES.
+type Host struct {
+        Username string
+        Password string
+        Host     string
+        Port     int
+        Sender   string
+}
+
+// Generate a PlainAuth to use with smtp.SendMail using host info
+func (h Host) plainAuth() smtp.Auth <span class="cov8" title="1">{
+        return smtp.PlainAuth("", h.Username, h.Password, h.Host)
+}</span>
+
+// Generate an address for smtp.SendMail
+func (h Host) address() string <span class="cov8" title="1">{
+        return fmt.Sprintf("%s:%d", h.Host, h.Port)
+}</span>
+
+// Generate a new authentication message given a target email and authentication code.
+func NewAuthMessage(sendTo string, authCode string) []byte <span class="cov8" title="1">{
+        msg := fmt.Sprintf(
+                "To: %s\r\n"+
+                        "Subject: Authentication Code\r\n"+
+                        "\r\n"+
+                        "Your authentication code is %s.\n"+
+                        "This code will expire in 1 minute.\r\n",
+                sendTo, authCode,
+        )
+        return []byte(msg)
+}</span>
+
+// Use smtp to send a message through the target SES host
+func SendMessage(sendFrom Host, sendTo string, msg []byte) error <span class="cov8" title="1">{
+        auth := sendFrom.plainAuth()
+        target := []string{sendTo}
+        addr := sendFrom.address()
+        return smtp.SendMail(addr, auth, sendFrom.Sender, target, msg)
+}</span>
 </pre>
 		
 		</div>

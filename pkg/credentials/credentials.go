@@ -1,4 +1,4 @@
-// Package authcred handles the authentication of users using username-password pairs
+// Package credentials handles the authentication of users using username-password pairs
 // Each user is stored as a userEntry in a local database. The database columns are defined
 // by the userEntry struct, so they appear as seen below:
 //   +----+-------+----------+---------------+------+---------------+-------------+
@@ -8,12 +8,12 @@
 // with supporting functions ChangeUserPassword() and ChangeUserPermissions() to alter the
 // data of already-existing users in the database.
 //
-// authcred exports the User type, which contains the same data as userEntry with private data
+// credentials exports the User type, which contains the same data as userEntry with private data
 // (password hash, salt, hash func, internal ID) removed. ValidateUserCred() returns one, so that
 // when the authentication API is called, it returns back information about the user in a format
 // that can easily pass back to the application servers or converted into a token without exposing
 // important data.
-package authcred
+package credentials
 
 import (
 	"encoding/json"

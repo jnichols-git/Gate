@@ -1,4 +1,4 @@
-package authjwt
+package gatekey
 
 import (
 	"strings"
@@ -11,7 +11,7 @@ func TestNewJWT(t *testing.T) {
 	testPerm := map[string]bool{
 		"authorized": true,
 	}
-	token := NewJWT(testUser, testPerm, time.Hour*24)
+	token := NewGateKey(testUser, testPerm, time.Hour*24)
 	// Verify that all token fields are properly set
 	if token.Header.Algorithm != "sha256" {
 		t.Errorf("Token uses unrecognized algorithm %s", token.Header.Algorithm)
@@ -22,8 +22,8 @@ func TestNewJWT(t *testing.T) {
 	if token.Body.ForUser != testUser {
 		t.Errorf("Token has incorrect user %s", token.Body.ForUser)
 	}
-	if !token.Body.Access["authorized"] {
-		t.Errorf("Token perm authorization has incorrect value %t", token.Body.Access["authorization"])
+	if !token.Body.Permissions["authorized"] {
+		t.Errorf("Token perm authorization has incorrect value %t", token.Body.Permissions["authorization"])
 	}
 }
 
@@ -33,7 +33,7 @@ func TestExportVerifyValid(t *testing.T) {
 	testPerm := map[string]bool{
 		"authorized": true,
 	}
-	jwt := NewJWT(testUser, testPerm, time.Hour*24)
+	jwt := NewGateKey(testUser, testPerm, time.Hour*24)
 	token := Export(jwt, []byte("test"))
 	res, valid, err := Verify(token, []byte("test"))
 	if err != nil {
@@ -44,8 +44,8 @@ func TestExportVerifyValid(t *testing.T) {
 		if jwt.Body.ForUser != res.Body.ForUser {
 			t.Errorf("Original token ForUser %s != result token ForUser %s.", jwt.Body.ForUser, res.Body.ForUser)
 		}
-		if jwt.Body.Access["user-type"] != res.Body.Access["user-type"] {
-			t.Errorf("Original token authorization %t != result token authorization %t.", jwt.Body.Access["authorization"], res.Body.Access["authorization"])
+		if jwt.Body.Permissions["user-type"] != res.Body.Permissions["user-type"] {
+			t.Errorf("Original token authorization %t != result token authorization %t.", jwt.Body.Permissions["authorization"], res.Body.Permissions["authorization"])
 		}
 		t.Errorf("Fields validated, validation error unknown.")
 	}
@@ -57,10 +57,10 @@ func TestExportVerifyInvalid(t *testing.T) {
 	testPerm := map[string]bool{
 		"authorized": true,
 	}
-	jwt := NewJWT(testUser, testPerm, time.Hour*24)
+	jwt := NewGateKey(testUser, testPerm, time.Hour*24)
 	Export(jwt, []byte("test"))
 	// Create an actual valid token
-	jwt = NewJWT(testUser, testPerm, time.Hour*24)
+	jwt = NewGateKey(testUser, testPerm, time.Hour*24)
 	token := Export(jwt, []byte("test"))
 	// Testing basic modifications to token in header and body
 

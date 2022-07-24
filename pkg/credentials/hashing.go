@@ -1,4 +1,4 @@
-package authcred
+package credentials
 
 import (
 	"crypto/rand"
@@ -28,7 +28,7 @@ func genSalt() ([]byte, error) {
 	for attempts := 0; attempts < 3 && bytesRead < 64; attempts++ {
 		attBytesRead, err := rand.Read(salt[bytesRead:])
 		bytesRead += attBytesRead
-		// We do need to check the error here, but it may not be fatal (EOF). This behavior could be improved.
+		// We do need to check the error here, but it may not be fatal (EOF). This error handling behavior could be improved.
 		// It is usually OS-related and asks the user to wait for the syscall to be available for random generation,
 		// so if an error occurs and we didn't finish reading to salt, we'll wait for 100ms
 		if err != nil && bytesRead < 64 {

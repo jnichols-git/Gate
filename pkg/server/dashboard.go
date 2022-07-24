@@ -1,9 +1,9 @@
-package authserver
+package server
 
 import (
-	"auth/pkg/authcred"
-	"auth/pkg/authjwt"
-	"auth/pkg/authmail"
+	"auth/pkg/credentials"
+	"auth/pkg/gatekey"
+	gatemail "auth/pkg/mail"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -62,8 +62,8 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		{
 			// Check authentication token
 			if authCookie, err := r.Cookie("auth-admin-jwt"); err == nil {
-				_, valid, err := authjwt.Verify(authCookie.Value, []byte(d.srv.Config.JWT.TokenSecret))
-				if err != nil || !valid {
+				key, valid, err := gatekey.Verify(authCookie.Value, []byte(d.srv.Config.JWT.TokenSecret))
+				if err != nil || !valid || !key.Body.Permissions["admin"] {
 					http.Redirect(w, r, "/dashboard/login", http.StatusFound)
 					break
 				}
@@ -74,7 +74,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Get SMTP config, and send an email to the server config test email to make sure no error is returned.
 			tmplData["SMTPHost"] = d.srv.SMTPHost()
 			if !d.Data.EmailOk {
-				if err := authmail.SendMessage(d.srv.SMTPHost(), d.srv.Config.SMTPHost.TestEmail, []byte("Ping!")); err != nil {
+				if err := gatemail.SendMessage(d.srv.SMTPHost(), d.srv.Config.SMTPHost.TestEmail, []byte("Ping!")); err != nil {
 					d.Data.EmailOk = true
 					setIcon(tmplData, "SMTPOkIcon", "yes.svg")
 				} else {
@@ -161,14 +161,14 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		username := r.Form["username"][0]
 		password := r.Form["password"][0]
 		fmt.Println("Validating admin user")
-		valid, user, err := authcred.ValidateUserCred(username, password)
+		valid, user, err := credentials.ValidateUserCred(username, password)
 		if err == nil && valid {
 			admin, ok := user.Permissions["admin"]
 			if ok && admin {
 				fmt.Printf("Admin user %s logged in\n", user.Username)
 				// Set cookie to admin token
-				jwt := authjwt.NewJWT("jani9652", user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
-				token := authjwt.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
+				jwt := gatekey.NewGateKey("jani9652", user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
+				token := gatekey.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
 				http.SetCookie(w, &http.Cookie{Name: "auth-admin-jwt", Value: token, Path: "/dashboard"})
 				http.Redirect(w, r, "/dashboard", http.StatusFound)
 			}
