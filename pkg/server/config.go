@@ -44,33 +44,47 @@ func NewConfig() *AuthServerConfig {
 	return &AuthServerConfig{}
 }
 
-func (s *AuthServerConfig) ReadEnvs() error {
+// Read environment variables contained in the AuthServerConfig.
+// Any given AuthServerConfig object has a series of variables naming environment values set in the OS, to keep them private.
+// This function takes those names and loads them into the config as their non-_ENV counterparts.
+//
+// Calling:
+//   - cfg *AuthServerConfig: Config to read environment values into.
+// Output:
+//   - error: Returned if any ENV value couldn't be read.
+func (cfg *AuthServerConfig) readEnvs() error {
 	var ok bool = true
-	s.SMTPHost.Username, ok = os.LookupEnv(s.SMTPHost.Username_ENV)
+	cfg.SMTPHost.Username, ok = os.LookupEnv(cfg.SMTPHost.Username_ENV)
 	if !ok {
-		return errors.Errorf("Couldn't read %s", s.SMTPHost.Username_ENV)
+		return errors.Errorf("Couldn't read %s", cfg.SMTPHost.Username_ENV)
 	}
-	s.SMTPHost.Password, ok = os.LookupEnv(s.SMTPHost.Password_ENV)
+	cfg.SMTPHost.Password, ok = os.LookupEnv(cfg.SMTPHost.Password_ENV)
 	if !ok {
-		return errors.Errorf("Couldn't read %s", s.SMTPHost.Password_ENV)
+		return errors.Errorf("Couldn't read %s", cfg.SMTPHost.Password_ENV)
 	}
-	s.JWT.TokenSecret, ok = os.LookupEnv(s.JWT.TokenSecret_ENV)
+	cfg.JWT.TokenSecret, ok = os.LookupEnv(cfg.JWT.TokenSecret_ENV)
 	if !ok {
-		return errors.Errorf("Couldn't read %s", s.JWT.TokenSecret_ENV)
+		return errors.Errorf("Couldn't read %s", cfg.JWT.TokenSecret_ENV)
 	}
 	return nil
 }
 
-func (s *AuthServerConfig) ReadConfig(fn string) error {
-	cfg, err := ioutil.ReadFile(fn)
+// Read a configuration file into the calling *AuthServerConfig.
+//
+// Calling:
+//   - cfg *AuthServerConfig: Config to read file into. If no error results, cfg should be fully populated.
+// Output:
+//   - error: Any error that occurs when reading, including: file doesn't exist, invalid yaml format, envs not present
+func (cfg *AuthServerConfig) ReadConfig(fn string) error {
+	input, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return err
 	}
-	err = yaml.Unmarshal(cfg, s)
+	err = yaml.Unmarshal(input, cfg)
 	if err != nil {
 		return err
 	}
-	err = s.ReadEnvs()
+	err = cfg.readEnvs()
 	if err != nil {
 		return err
 	}

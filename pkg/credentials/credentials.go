@@ -1,4 +1,4 @@
-// Package credentials handles the authentication of users using username-password pairs
+// Package credentials handles the authentication of users using username-password pairs.
 // Each user is stored as a userEntry in a local database. The database columns are defined
 // by the userEntry struct, so they appear as seen below:
 //   +----+-------+----------+---------------+------+---------------+-------------+

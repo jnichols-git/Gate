@@ -29,7 +29,8 @@ Contribution Guidelines:
 
 1. Comments and Documentation
     1. You SHOULD include comments explaining functionality if it is not self-evident from the code.
-    2. You MUST include comments explaining the parameters, callers, and return values of functions, EXCEPT in test files.
+    2. You MUST include comments explaining the parameters, callers, and return values of functions, EXCEPT in test files or with functions derived from
+    commonly-used Go functions (testing, HTTP handlers).
     3. You SHOULD follow up-to-date Golang [commenting conventions](https://go.dev/doc/comment).
 2. Variable and Type Naming
     1. You SHOULD not use single-character variable or type names.

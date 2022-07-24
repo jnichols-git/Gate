@@ -49,7 +49,8 @@ func setIcon(in map[string]interface{}, at string, to string) {
 	in[at] = fmt.Sprintf("/dashboard/resource/img/%s", to)
 }
 
-// Serve requests to dashboard
+// Serve requests to dashboard.
+// This implements the http.Handler interface on Dashboard.
 func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Acquire and sanitize request URL
 	requrl := filepath.Clean(r.URL.Path)
@@ -61,7 +62,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/dashboard":
 		{
 			// Check authentication token
-			if authCookie, err := r.Cookie("auth-admin-jwt"); err == nil {
+			if authCookie, err := r.Cookie("admin-gate-key"); err == nil {
 				key, valid, err := gatekey.Verify(authCookie.Value, []byte(d.srv.Config.JWT.TokenSecret))
 				if err != nil || !valid || !key.Body.Permissions["admin"] {
 					http.Redirect(w, r, "/dashboard/login", http.StatusFound)
@@ -128,9 +129,9 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	//http.ServeFile(w, r, reqfile)
 }
 
+// Standalone handler smtp config updates
 func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: Authenticate admin user(s).
 	// Handle post requests through parsing form. Modify backend based on response.
@@ -145,6 +146,7 @@ func (d *Dashboard) handleSMTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
+// Standalone handler for control updates
 func (d *Dashboard) handleControls(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		r.ParseForm()
@@ -154,6 +156,7 @@ func (d *Dashboard) handleControls(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
+// Standalone handler for admin login
 func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		r.ParseForm()
@@ -167,9 +170,9 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 			if ok && admin {
 				fmt.Printf("Admin user %s logged in\n", user.Username)
 				// Set cookie to admin token
-				jwt := gatekey.NewGateKey("jani9652", user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
+				jwt := gatekey.NewGateKey(user.Username, user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
 				token := gatekey.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
-				http.SetCookie(w, &http.Cookie{Name: "auth-admin-jwt", Value: token, Path: "/dashboard"})
+				http.SetCookie(w, &http.Cookie{Name: "admin-gate-key", Value: token, Path: "/dashboard"})
 				http.Redirect(w, r, "/dashboard", http.StatusFound)
 			}
 		}

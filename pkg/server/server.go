@@ -46,7 +46,12 @@ type AuthServer struct {
 	wg sync.WaitGroup
 }
 
-// Create a new server using config.
+// Create a new AuthServer (authentication server) using an AuthServerConfig.
+//
+// Input:
+//   - cfg *AuthServerConfig: Target configuration. Should be non-nil.
+// Output:
+//   - *AuthServer: A new server object containing configuration, an *http.Server, and a waitgroup
 func NewServer(cfg *AuthServerConfig) *AuthServer {
 	return &AuthServer{
 		Config: cfg,
@@ -54,18 +59,28 @@ func NewServer(cfg *AuthServerConfig) *AuthServer {
 	}
 }
 
-func (s *AuthServer) SMTPHost() gatemail.Host {
+// Create a mail host from the calling server's configuration.
+//
+// Calling:
+//   - srv *AuthServer: Server to use with this SMTP configuration
+// Output:
+//   - (gate)mail.Host: SMTP host for use with pkg/mail.
+func (srv *AuthServer) SMTPHost() gatemail.Host {
 	return gatemail.Host{
-		Username: s.Config.SMTPHost.Username,
-		Password: s.Config.SMTPHost.Password,
-		Host:     s.Config.SMTPHost.Host,
-		Port:     s.Config.SMTPHost.Port,
-		Sender:   s.Config.SMTPHost.Sender,
+		Username: srv.Config.SMTPHost.Username,
+		Password: srv.Config.SMTPHost.Password,
+		Host:     srv.Config.SMTPHost.Host,
+		Port:     srv.Config.SMTPHost.Port,
+		Sender:   srv.Config.SMTPHost.Sender,
 	}
 }
 
-// Write out a response with code and msg
-// code should be an http library constant. see doc/server for code usage
+// Write out an HTTP response with a code/message.
+//
+// Input:
+//   - w http.ResponseWriter: These are always given to http-response-capable functions; just pass that here.
+//   - code int: HTTP response code.
+//   - msg string: Message to send with the code. Technically optional, though very good form to include an informative body, especially with codes >399.
 func WriteResponse(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
 	w.Write([]byte(msg))
@@ -82,11 +97,25 @@ type AuthRequestBody struct {
 	Token       string `json:"authToken"`
 }
 
-// Read request body.
-// An error here usually indicates a malformed request and should return a 400.
+// Read the body of an http request with AuthRequestBody params.
+//
+// Input:
+//   - out *AuthRequestBody: Pointer to an AuthRequestBody object to read data into
+//   - req *http.Request: Request to read from. This uses ioutil.ReadAll, which means it depletes the buffer; trying to call
+//   any other read on the request after ReadRequestBody will make the body appear to be empty.
+// Output:
+//   - Error, if one occurs. Non-POST requests and invalid JSON will cause this.
 func ReadRequestBody(out *AuthRequestBody, req *http.Request) error {
 	if req.Method != http.MethodPost {
-		return errors.New("auth requests MUST be POST requests.")
+		return errors.New("gate requests MUST be POST requests.")
+	}
+	if apikey := req.Header.Get("x-api-key"); apikey != "" {
+		// Check API key "user"
+		if validKey, _, err := credentials.ValidateUserCred("apikey", apikey); err != nil || !validKey {
+			return errors.New("couldn't validate the x-api-key header field")
+		}
+	} else {
+		return errors.New("gate requests require the x-api-key header with a valid API key")
 	}
 	bodyReader := req.Body
 	body, err := ioutil.ReadAll(bodyReader)
@@ -289,8 +318,13 @@ func (s *AuthServer) HandleKeyAuthRequest(w http.ResponseWriter, req *http.Reque
 	WriteResponse(w, http.StatusOK, string(outToken))
 }
 
-// Start the authentication server.
-// Returns the dashboard used to control the server.
+// Start an authentication server.
+// This has two different behaviors; a new server with an empty database and any other server.
+// New users will have to create an admin account, be provided with a randomly-generated password and an API key,
+// and then asked to restart the server.
+//
+// Calling:
+//   - s *AuthServer: Server to run. Should be initialized with NewServer before calling Start.
 func (s *AuthServer) Start() {
 	// Open log
 	OpenLog()
@@ -299,7 +333,7 @@ func (s *AuthServer) Start() {
 	credentials.OpenDB(s.Config.DB.Path)
 	// Check entries. Count as first run if empty.
 	if credentials.Entries() == 0 {
-		fmt.Println("Welcome to auth")
+		fmt.Println("Welcome to Gate")
 		fmt.Println("Your database is empty--you'll need to register admin credentials so you can use the dashboard.")
 		var email, username, password string
 		fmt.Print("Email: ")
@@ -314,7 +348,16 @@ func (s *AuthServer) Start() {
 		fmt.Println("Press enter when you have saved your password.")
 		fmt.Scanln()
 		credentials.RegisterUser(email, username, password, map[string]bool{"admin": true})
-		fmt.Println("Registered. Server will now exit; please restart to initialize server.")
+		fmt.Println("Registered.")
+		fmt.Println("All Gate API calls require an API key. Your API key is below. It will never be output again--save it somewhere secure.")
+		ak := make([]byte, 32)
+		rand.Read(ak[:])
+		apikey := base64.RawURLEncoding.EncodeToString(ak)
+		fmt.Println(apikey)
+		fmt.Println("Press enter when you have saved your API key.")
+		fmt.Scanln()
+		credentials.RegisterUser("nil", "api", apikey, map[string]bool{"apikey": true})
+		fmt.Printf("Please clear this output and start the server again. You can access your dashboard at https://gate.%s/dashboard\n", s.Config.Domain)
 		os.Exit(0)
 	}
 	// Add handlers
