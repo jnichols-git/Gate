@@ -200,24 +200,24 @@ func RegisterUser(email, username string, password string, permissions map[strin
 //   - User: Public user credentials.
 //   - error: Any errors that occur during user validation, including: failure to find user, failure to hash password, failure to validate
 //   user.
-func ValidateUserCred(username, password string) (bool, *User, error) {
+func ValidateUserCred(username, password string) (bool, User, error) {
 	// Find user. Fail out if non-eistent
 	user, err := findUserEntryByUsername(username)
 	if err != nil {
-		return false, nil, err
+		return false, User{}, err
 	}
 	if user.Username == "" {
-		return false, nil, fmt.Errorf("User %s not found", username)
+		return false, User{}, fmt.Errorf("User %s not found", username)
 	}
 	// Check hashed password against input password.
 	salt, _ := stringDecode(user.Salt)
 	pwdHash, err := slowHash([]byte(password), salt, user.HashFunc)
 	if err != nil {
-		return false, nil, err
+		return false, User{}, err
 	}
 	valid := username == user.Username && pwdHash == user.PasswordHash
 	if valid {
-		outUser := &User{
+		outUser := User{
 			Email:       user.Email,
 			Username:    user.Username,
 			Permissions: make(map[string]bool),
@@ -225,7 +225,7 @@ func ValidateUserCred(username, password string) (bool, *User, error) {
 		json.Unmarshal([]byte(user.Permissions), &outUser.Permissions)
 		return true, outUser, nil
 	} else {
-		return false, &User{}, fmt.Errorf("User validation failed")
+		return false, User{}, fmt.Errorf("User validation failed")
 	}
 }
 
@@ -271,20 +271,32 @@ func ChangeUserPassword(username, password string, newPassword string) error {
 //
 // Input:
 //   - username string: Username to alter.
-//   - newPermissions map[string]bool: Full list of new permissions. Completely overwrites old permissions.
+//   - newPermissions map[string]bool: Full list of new permissions. Overwrites any permissions with the same name.
 // Output:
 //   - error: Any error that occurs while changing permissions, including: user does not exist, failure to marshal
 //   permissions
 func ChangeUserPermissions(username string, newPermissions map[string]bool) error {
-	user, err := findUserEntryByUsername(username)
+	// Get userEntry. We need the entry ID to update the DB
+	entry, err := findUserEntryByUsername(username)
 	if err != nil {
 		return err
 	}
-	bytePerms, err := json.Marshal(newPermissions)
+	// Get the corresponding User. This unmarshals the permissions string in entry so we can change permissions without a full overwrite.
+	user := entry.toUser()
+	// Write every key-value pair from newPermissions to old permissions.
+	for name, value := range newPermissions {
+		// It's possible user had no permissions before.
+		if user.Permissions == nil {
+			user.Permissions = make(map[string]bool)
+		}
+		user.Permissions[name] = value
+	}
+	// Re-stringify permissions and update the entry in the database.
+	bytePerms, err := json.Marshal(user.Permissions)
 	if err != nil {
 		return err
 	}
-	user.Permissions = string(bytePerms)
-	updateUser(&user)
+	entry.Permissions = string(bytePerms)
+	updateUser(&entry)
 	return nil
 }

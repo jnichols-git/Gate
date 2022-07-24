@@ -16,12 +16,24 @@ var stringEncode func([]byte) string = base64.RawURLEncoding.EncodeToString
 // stringDecode is shorthand for base64.URLEncoding.DecodeString().
 var stringDecode func(string) ([]byte, error) = base64.RawURLEncoding.DecodeString
 
-// genSalt returns a 64-bit random byte string
+// Creates a length 64 random byte string.
+//
+// Output:
+//   - []byte: Byte string
+//   - error: Currently always nil. Error handling for read/write calls is currently a project-wide issue.
 func genSalt() ([]byte, error) {
 	salt := make([]byte, 64)
-	_, err := rand.Read(salt[:])
-	if err != nil {
-		return nil, err
+	bytesRead := 0
+	// Make 3 attempts to generate salt value.
+	for attempts := 0; attempts < 3 && bytesRead < 64; attempts++ {
+		attBytesRead, err := rand.Read(salt[bytesRead:])
+		bytesRead += attBytesRead
+		// We do need to check the error here, but it may not be fatal (EOF). This behavior could be improved.
+		// It is usually OS-related and asks the user to wait for the syscall to be available for random generation,
+		// so if an error occurs and we didn't finish reading to salt, we'll wait for 100ms
+		if err != nil && bytesRead < 64 {
+			time.Sleep(time.Millisecond * 100)
+		}
 	}
 	return salt, nil
 }
@@ -43,9 +55,7 @@ var hfs map[string]func() hash.Hash = map[string]func() hash.Hash{
 //   - hashFunc string: Hash function to use. Must be a key in hfs.
 // Output:
 //   - string: Output hashed value
-//   - error: Any error that occurs, including: unsupported hash function or too-efficient hashing.
-//   Passwords will be put through hashRounds rounds, and if that process takes <20ms, that throws an error.
-//   It is Very Bad if this ever happens.
+//   - error: Any error that occurs, including: unsupported hash function
 func slowHash(pwd, salt []byte, hashFunc string) (string, error) {
 	// Get hash func. Return error if not supported
 	f, ok := hfs[hashFunc]
@@ -61,18 +71,13 @@ func slowHash(pwd, salt []byte, hashFunc string) (string, error) {
 	} else {
 		pwd_hash = hf.Sum(nil)
 	}
-	// Repeatedly hash for hashRounds. Track time to complete.
-	start := time.Now()
-	for i := 0; i < hashRounds; i++ {
+	// Repeatedly hash for 2^17 rounds.
+	for i := 0; i < 131072; i++ {
 		if _, err := hf.Write(pwd_hash); err != nil {
 			return "", err
 		} else {
 			pwd_hash = hf.Sum(nil)
 		}
-	}
-	dur := time.Now().Sub(start).Milliseconds()
-	if dur < int64(minHashMS) {
-		return "", errors.Errorf("Hash function with %d rounds took %d ms (min %d).", hashRounds, dur, minHashMS)
 	}
 	// Encode using base64URL
 	encodedHash := stringEncode(pwd_hash)
