@@ -1,15 +1,16 @@
 package server
 
 import (
-	"auth/pkg/credentials"
-	"auth/pkg/gatekey"
-	gatemail "auth/pkg/mail"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"text/template"
 	"time"
+
+	"github.com/jakenichols2719/gate/pkg/credentials"
+	"github.com/jakenichols2719/gate/pkg/gatekey"
+	gatemail "github.com/jakenichols2719/gate/pkg/mail"
 )
 
 // Persistent data for Dashboard.

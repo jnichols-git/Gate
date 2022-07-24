@@ -1,10 +1,6 @@
 package server
 
 import (
-	"auth/pkg/credentials"
-	"auth/pkg/gatecode"
-	"auth/pkg/gatekey"
-	gatemail "auth/pkg/mail"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -17,6 +13,11 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/jakenichols2719/gate/pkg/credentials"
+	"github.com/jakenichols2719/gate/pkg/gatecode"
+	"github.com/jakenichols2719/gate/pkg/gatekey"
+	gatemail "github.com/jakenichols2719/gate/pkg/mail"
 )
 
 /* Quick reminder of the contents of AuthServerConfig:

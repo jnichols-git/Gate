@@ -1,9 +1,10 @@
 package main
 
 import (
-	"auth/pkg/server"
 	"fmt"
 	"time"
+
+	"github.com/jakenichols2719/gate/pkg/server"
 )
 
 var secret []byte = []byte("test secret")
