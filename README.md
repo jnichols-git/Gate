@@ -46,6 +46,11 @@ overhead should be in the quanitity and frequency of validation needed, not in t
 4. Gate servers should be stable, handle errors and improper input well, and provide strong communication back to the application regarding
 those errors.
 
+### Non-Goals
+
+1. Gate is not meant to replace, or be overall better than, industry standard authentication solutions.
+2. The immediate focus of this project is not to reach a wide commercial audience.
+
 ## Getting Involved
 
 Contributions to Gate are highly appreciated! Check [CONTRIBUTING](CONTRIBUTING.md) to learn what you can do to help.
