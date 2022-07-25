@@ -11,8 +11,8 @@ func main() {
 	C := sslArgs[0]  // Country
 	ST := sslArgs[1] // State
 	L := sslArgs[2]  // Locality
-	O := sslArgs[3]
-	OU := sslArgs[4]
+	O := sslArgs[3]  // Organization
+	OU := sslArgs[4] // Organizational Unit
 	CN := sslArgs[5] // Common name (address for cert)
 
 	ssl := `openssl`
