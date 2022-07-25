@@ -11,7 +11,7 @@ SMTPHost:
   TestEmail: success@simulator.amazonses.com # Test email to send to
 Database:
   Path: ./dat/database/auth.db # Path to database file
-JWS:
+JWT:
   ENV_TokenSecret: JWT_SIGNING_SECRET # Environment variable where the secret is stored. ALL PASSWORDS INVALID IF THE *USED* VALUE CHANGES
   UserValidTime: 1440 # Valid time for tokens for regular user authentication, in minutes
   AdminValidTime: 30 # Valid time for tokens for admin dashboard, in minutes
