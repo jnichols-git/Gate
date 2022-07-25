@@ -39,7 +39,7 @@ func createDashboard(fromServer *AuthServer) *Dashboard {
 			TLSOk:   false,
 		},
 		srv:            fromServer,
-		serveAddr:      fmt.Sprintf("auth.%s/dashboard/", fromServer.Config.Domain),
+		serveAddr:      fmt.Sprintf("gate.%s/dashboard/", fromServer.Config.Domain),
 		serveDirectory: "./dat/dashboardRoot",
 	}
 }

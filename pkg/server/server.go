@@ -112,7 +112,7 @@ func ReadRequestBody(out *AuthRequestBody, req *http.Request) error {
 	}
 	if apikey := req.Header.Get("x-api-key"); apikey != "" {
 		// Check API key "user"
-		if validKey, _, err := credentials.ValidateUserCred("apikey", apikey); err != nil || !validKey {
+		if validKey, _, err := credentials.ValidateUserCred("api", apikey); err != nil || !validKey {
 			return errors.New("couldn't validate the x-api-key header field")
 		}
 	} else {
