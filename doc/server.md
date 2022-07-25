@@ -70,7 +70,7 @@ will not be used; preferably they should not be included in queries.
     - Parameters
         - `username`: Username
         - `password`: Password
-        - `getToken` (optional): Whether to return a JWS cookie representing successful sign on.
+        - `getKey` (optional): Whether to return a gate key representing successful sign on.
     - Responses
         - `200 OK`: User credentials match a user in the server database. If `getToken`, body contains a bearer token.
         - `400 Bad Request`: Catch-all for login errors; see contents for error information
@@ -94,7 +94,7 @@ will not be used; preferably they should not be included in queries.
     - Parameters
         - `email`: Email address to which the authentication code was sent
         - `gateCode`: Received validation code
-        - `getToken` (optional): Whether to return a JWS cookie representing successful sign on
+        - `getKey` (optional): Whether to return a gate key representing successful sign on
     - Responses
         - `200 OK`:  `gateCode` was valid. If `getToken`, body contains a bearer token.
         - `400 Bad Request`: Request was poorly-formed; see contents for error information.

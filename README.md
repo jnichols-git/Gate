@@ -20,7 +20,17 @@ Gate is built to run using the following tools:
 
 ## Installation
 
-WIP
+Currently, installation instructions for users, along with a video demo, are a work in progress. If you are contributing to the project,
+you can follow these steps to get the project up and running.
+
+1. Gate installations have been tested on an Ubuntu machine through WSL. It should function, following these steps, in any Linux environment.
+2. Install Go through `sudo apt-get install golang-go`
+3. Install gccgo through `sudo apt-get install gccgo-go`
+4. Clone your fork of the GitHub repository to a folder of your choice
+5. Navigate to the base directory
+6. Generate localhost certs through certgen by calling `go run ./cmd/certgen/certgen.go (country) (state) (locality) (organization) (organizational unit) localhost`
+
+You should be set up to contribute from there. You can run `make server-run` to start a server and begin configuring your `localhost` testing environment.
 
 ## Configuration
 
@@ -29,7 +39,8 @@ of each field.
 
 ## Usage
 
-WIP
+You can run your server from the base directory using `make server-run` on localhost (or your configured domain), and make requests to `https://gate.localhost:8080`.
+If you're using `curl`, you'll need to add the `--insecure` flag if your certificates are self-signed. You can see `doc/server` for a detailed API spec.
 
 ## Project Goals
 

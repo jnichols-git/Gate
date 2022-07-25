@@ -94,8 +94,8 @@ type AuthRequestBody struct {
 	Password    string `json:"password"`
 	NewPassword string `json:"newPassword"`
 	Code        string `json:"authCode"`
-	GetToken    bool   `json:"getToken"`
-	Token       string `json:"authToken"`
+	GetKey      bool   `json:"getKey"`
+	Key         string `json:"gateKey"`
 }
 
 // Read the body of an http request with AuthRequestBody params.
@@ -189,7 +189,7 @@ func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Requ
 	}
 	jwt := gatekey.NewGateKey(authReq.Username, entry.Permissions, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
 	token := gatekey.Export(jwt, []byte(s.Config.JWT.TokenSecret))
-	if authReq.GetToken {
+	if authReq.GetKey {
 		WriteResponse(w, http.StatusOK, token)
 	} else {
 		WriteResponse(w, http.StatusOK, "no token requested; set getToken=true in request body for an auth token\n")
@@ -273,7 +273,7 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 	if secret, okToSign := os.LookupEnv(s.Config.JWT.TokenSecret); !valid || !okToSign {
 		jwt := gatekey.NewGateKey(authReq.Email, map[string]bool{"authorized": true}, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
 		token := gatekey.Export(jwt, []byte(secret))
-		if authReq.GetToken {
+		if authReq.GetKey {
 			WriteResponse(w, http.StatusOK, token)
 		} else {
 			WriteResponse(w, http.StatusOK, "no token requested; set getToken=true in request body for an auth token\n")
@@ -297,13 +297,13 @@ func (s *AuthServer) HandleKeyAuthRequest(w http.ResponseWriter, req *http.Reque
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
-	if authReq.Token == "" {
+	if authReq.Key == "" {
 		errMsg := fmt.Sprintf("authToken is needed for endpoint /token\n")
 		WriteResponse(w, http.StatusBadRequest, errMsg)
 		return
 	}
 	// Verify the authToken included with the request
-	token, valid, err := gatekey.Verify(authReq.Token, []byte(s.Config.JWT.TokenSecret))
+	token, valid, err := gatekey.Verify(authReq.Key, []byte(s.Config.JWT.TokenSecret))
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't process bearer token: %v\n", err)
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
