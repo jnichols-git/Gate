@@ -64,7 +64,7 @@ func findUserEntryByUsername(find string) (out userEntry, err error) {
 	if db == nil {
 		err = fmt.Errorf("findUser failed; database not open")
 	} else {
-		db.Where("Username = ?", find).First(&out)
+		db.Where("username = ?", find).First(&out)
 	}
 	return
 }

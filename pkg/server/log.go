@@ -32,9 +32,8 @@ func Log(format string, args ...interface{}) error {
 		return errors.New("Attempted to Log() before OpenLog()")
 	}
 	currTime := time.Now().UTC().Format("06-01-02T15:04:05.999")
-	logMsg := fmt.Sprintf("%s: %s\n", currTime, fmt.Sprintf(format, args...))
-	_, err := logStream.Write([]byte(logMsg))
-	return err
+	fmt.Printf("%s: %s\n", currTime, fmt.Sprintf(format, args...))
+	return nil
 }
 
 // CloseLog closes the current log file and rewrites it to a separate file

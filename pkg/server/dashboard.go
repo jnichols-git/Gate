@@ -39,7 +39,7 @@ func createDashboard(fromServer *AuthServer) *Dashboard {
 			TLSOk:   false,
 		},
 		srv:            fromServer,
-		serveAddr:      fmt.Sprintf("gate.%s/dashboard/", fromServer.Config.Domain),
+		serveAddr:      fmt.Sprintf("%s/dashboard/", fromServer.Config.Address),
 		serveDirectory: "./dat/dashboardRoot",
 	}
 }
@@ -64,7 +64,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		{
 			// Check authentication token
 			if authCookie, err := r.Cookie("admin-gate-key"); err == nil {
-				key, valid, err := gatekey.Verify(authCookie.Value, []byte(d.srv.Config.JWT.TokenSecret))
+				key, valid, err := gatekey.Verify(authCookie.Value, []byte(d.srv.Config.GateKey.GatekeySecret))
 				if err != nil || !valid || !key.Body.Permissions["admin"] {
 					http.Redirect(w, r, "/dashboard/login", http.StatusFound)
 					break
@@ -171,8 +171,8 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 			if ok && admin {
 				fmt.Printf("Admin user %s logged in\n", user.Username)
 				// Set cookie to admin token
-				jwt := gatekey.NewGateKey(user.Username, user.Permissions, time.Duration(d.srv.Config.JWT.AdminValidTime)*time.Minute)
-				token := gatekey.Export(jwt, []byte(d.srv.Config.JWT.TokenSecret))
+				jwt := gatekey.NewGateKey(user.Username, user.Permissions, time.Duration(d.srv.Config.GateKey.AdminValidTime)*time.Minute)
+				token := gatekey.Export(jwt, []byte(d.srv.Config.GateKey.GatekeySecret))
 				http.SetCookie(w, &http.Cookie{Name: "admin-gate-key", Value: token, Path: "/dashboard"})
 				http.Redirect(w, r, "/dashboard", http.StatusFound)
 			}
@@ -182,11 +182,12 @@ func (d *Dashboard) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Dashboard) addEndpoints() {
-	http.Handle(d.serveAddr, d)
+	http.Handle("/dashboard/", d)
 	// Use a raw FileServer for handling resources; root is a couple dirs down so non-resource content is not exposed
+	fmt.Printf("Starting dashboard at %s\n", d.serveAddr)
 	resourceFS := http.FileServer(http.Dir(d.serveDirectory + "/dashboard/resource"))
-	http.Handle(d.serveAddr+"resource/", http.StripPrefix("/dashboard/resource/", resourceFS))
-	http.HandleFunc(d.serveAddr+"update-config-smtp", d.handleSMTP)
-	http.HandleFunc(d.serveAddr+"update-config-controls", d.handleControls)
-	http.HandleFunc(d.serveAddr+"login/admin-login", d.handleAdminLogin)
+	http.Handle("/dashboard/resource/", http.StripPrefix("/dashboard/resource/", resourceFS))
+	http.HandleFunc("/update-config-smtp", d.handleSMTP)
+	http.HandleFunc("/update-config-controls", d.handleControls)
+	http.HandleFunc("/dashboard/login/admin-login", d.handleAdminLogin)
 }

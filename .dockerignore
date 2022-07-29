@@ -1,0 +1,9 @@
+# Ignore database/log files
+/dat/database*
+/dat/log/*
+
+# Ignore binary files
+/bin/*
+
+# Ignore certs
+/cert/*

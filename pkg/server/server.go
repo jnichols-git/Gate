@@ -187,8 +187,8 @@ func (s *AuthServer) handleCredAuthRequest(w http.ResponseWriter, req *http.Requ
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
 		return
 	}
-	jwt := gatekey.NewGateKey(authReq.Username, entry.Permissions, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
-	token := gatekey.Export(jwt, []byte(s.Config.JWT.TokenSecret))
+	jwt := gatekey.NewGateKey(authReq.Username, entry.Permissions, time.Duration(s.Config.GateKey.UserValidTime)*time.Minute)
+	token := gatekey.Export(jwt, []byte(s.Config.GateKey.GatekeySecret))
 	if authReq.GetKey {
 		WriteResponse(w, http.StatusOK, token)
 	} else {
@@ -270,17 +270,16 @@ func (s *AuthServer) HandleCodeAuthRequest(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	valid := gatecode.ValidateGateCode(authReq.Email, authReq.Code)
-	if secret, okToSign := os.LookupEnv(s.Config.JWT.TokenSecret); !valid || !okToSign {
-		jwt := gatekey.NewGateKey(authReq.Email, map[string]bool{"authorized": true}, time.Duration(s.Config.JWT.UserValidTime)*time.Minute)
-		token := gatekey.Export(jwt, []byte(secret))
-		if authReq.GetKey {
-			WriteResponse(w, http.StatusOK, token)
-		} else {
-			WriteResponse(w, http.StatusOK, "no token requested; set getToken=true in request body for an auth token\n")
-		}
-	} else {
+	if !valid {
 		errMsg := fmt.Sprintf("Invalid code")
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
+	}
+	jwt := gatekey.NewGateKey(authReq.Email, map[string]bool{"authorized": true}, time.Duration(s.Config.GateKey.UserValidTime)*time.Minute)
+	token := gatekey.Export(jwt, []byte(s.Config.GateKey.GatekeySecret))
+	if authReq.GetKey {
+		WriteResponse(w, http.StatusOK, token)
+	} else {
+		WriteResponse(w, http.StatusOK, "no token requested; set getToken=true in request body for an auth token\n")
 	}
 }
 
@@ -303,7 +302,7 @@ func (s *AuthServer) HandleKeyAuthRequest(w http.ResponseWriter, req *http.Reque
 		return
 	}
 	// Verify the authToken included with the request
-	token, valid, err := gatekey.Verify(authReq.Key, []byte(s.Config.JWT.TokenSecret))
+	token, valid, err := gatekey.Verify(authReq.Key, []byte(s.Config.GateKey.GatekeySecret))
 	if err != nil {
 		errMsg := fmt.Sprintf("Couldn't process bearer token: %v\n", err)
 		WriteResponse(w, http.StatusUnauthorized, errMsg)
@@ -326,61 +325,67 @@ func (s *AuthServer) HandleKeyAuthRequest(w http.ResponseWriter, req *http.Reque
 //
 // Calling:
 //   - s *AuthServer: Server to run. Should be initialized with NewServer before calling Start.
-func (s *AuthServer) Start() {
+func (s *AuthServer) Start() error {
 	// Open log
 	OpenLog()
 	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
 	// Open database
-	credentials.OpenDB(s.Config.DB.Path)
-	// Check entries. Count as first run if empty.
+	credentials.OpenDB("./dat/database/auth.db")
+	// Check entries. Count as first run if empty; otherwise, attempt to log in as admin. Admin credentials must be provided to run Gate.
 	if credentials.Entries() == 0 {
-		fmt.Println("Welcome to Gate")
-		fmt.Println("Your database is empty--you'll need to register admin credentials so you can use the dashboard.")
-		var email, username, password string
-		fmt.Print("Email: ")
-		fmt.Scanln(&email)
-		fmt.Print("Username: ")
-		fmt.Scanln(&username)
-		fmt.Println("Your password is below. It will never be output again--save it somewhere secure.")
+		Log("Welcome to Gate. Your database is empty; your provided admin credentials will be used to create the admin account.")
+		var password string
+		Log("Your password is below. It will never be output again--save it somewhere secure.")
 		pwd := make([]byte, 32)
 		rand.Read(pwd[:])
 		password = base64.RawURLEncoding.EncodeToString(pwd)
 		fmt.Println(password)
-		fmt.Println("Press enter when you have saved your password.")
-		fmt.Scanln()
-		credentials.RegisterUser(email, username, password, map[string]bool{"admin": true})
-		fmt.Println("Registered.")
-		fmt.Println("All Gate API calls require an API key. Your API key is below. It will never be output again--save it somewhere secure.")
+		err := credentials.RegisterUser(s.Config.Admin.Email, s.Config.Admin.Username, password, map[string]bool{"admin": true})
+		if err != nil {
+			return err
+		}
+		Log("All Gate API calls require an API key. Your API key is below. It will never be output again--save it somewhere secure.")
 		ak := make([]byte, 32)
 		rand.Read(ak[:])
 		apikey := base64.RawURLEncoding.EncodeToString(ak)
 		fmt.Println(apikey)
-		fmt.Println("Press enter when you have saved your API key.")
-		fmt.Scanln()
-		credentials.RegisterUser("nil", "api", apikey, map[string]bool{"apikey": true})
-		fmt.Printf("Please clear this output and start the server again. You can access your dashboard at https://gate.%s/dashboard\n", s.Config.Domain)
+		err = credentials.RegisterUser("nil", "api", apikey, map[string]bool{"apikey": true})
+		if err != nil {
+			return err
+		}
+		Log("Gate will now restart. Please set the gate-admin-password secret to log in.")
 		os.Exit(0)
+	} else {
+		username, password := s.Config.Admin.Username, s.Config.Admin.Password
+		if valid, user, err := credentials.ValidateUserCred(username, password); valid && user.Permissions["admin"] {
+			Log("Logged in as admin user '%s'", username)
+		} else if err != nil {
+			return err
+		} else {
+			return fmt.Errorf("Couldn't start server with admin credentials for unknown reason.")
+		}
 	}
 	// Add handlers
-	http.HandleFunc(fmt.Sprintf("gate.%s/register", s.Config.Domain), s.handleCredRegiRequest)
-	http.HandleFunc(fmt.Sprintf("gate.%s/login", s.Config.Domain), s.handleCredAuthRequest)
-	http.HandleFunc(fmt.Sprintf("gate.%s/resetPassword", s.Config.Domain), s.handlePwdChangeRequest)
-	http.HandleFunc(fmt.Sprintf("gate.%s/mail", s.Config.Domain), s.HandleEmailAuthRequest)
-	http.HandleFunc(fmt.Sprintf("gate.%s/code", s.Config.Domain), s.HandleCodeAuthRequest)
-	http.HandleFunc(fmt.Sprintf("gate.%s/key", s.Config.Domain), s.HandleKeyAuthRequest)
+	http.HandleFunc("/register", s.handleCredRegiRequest)
+	http.HandleFunc("/login", s.handleCredAuthRequest)
+	http.HandleFunc("/resetPassword", s.handlePwdChangeRequest)
+	http.HandleFunc("/mail", s.HandleEmailAuthRequest)
+	http.HandleFunc("/code", s.HandleCodeAuthRequest)
+	http.HandleFunc("/key", s.HandleKeyAuthRequest)
 	// Create dashboard from this AuthServer, and add its endpoint
 	createDashboard(s).addEndpoints()
 	// Generate address
-	fulladdr := fmt.Sprintf("%s:%d", s.Config.Domain, s.Config.Port)
-	crt := fmt.Sprintf("./cert/%s.crt", s.Config.Domain)
-	key := fmt.Sprintf("./cert/%s.key", s.Config.Domain)
+	// fulladdr := fmt.Sprintf("%s:%d", s.Config.Domain, s.Config.Port)
+	crt := "/run/secrets/gate-ssl-crt"
+	key := "/run/secrets/gate-ssl-key"
+	fmt.Printf("%s, %s\n", crt, key)
 	// Fill out fields for server that aren't created by default
+	//fmt.Println(s.Config.Address)
 	s.srv = &http.Server{
-		Addr:    fulladdr,
-		Handler: nil,
+		Addr: s.Config.Address,
 	}
 	s.wg = sync.WaitGroup{}
-	err := Log("Starting auth server at https://%s.%s", "gate", fulladdr)
+	err := Log("Starting auth server at https://%s", s.srv.Addr)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -400,6 +405,7 @@ func (s *AuthServer) Start() {
 		}
 		s.wg.Done()
 	}()
+	return nil
 }
 
 // Stop the server. Waits to return until everything closes out.

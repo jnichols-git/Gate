@@ -55,17 +55,17 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">auth/pkg/credentials/credentials.go (82.4%)</option>
+				<option value="file0">github.com/jakenichols2719/gate/pkg/credentials/credentials.go (82.4%)</option>
 				
-				<option value="file1">auth/pkg/credentials/dbaccess.go (100.0%)</option>
+				<option value="file1">github.com/jakenichols2719/gate/pkg/credentials/dbaccess.go (100.0%)</option>
 				
-				<option value="file2">auth/pkg/credentials/hashing.go (82.6%)</option>
+				<option value="file2">github.com/jakenichols2719/gate/pkg/credentials/hashing.go (82.6%)</option>
 				
-				<option value="file3">auth/pkg/gatecode/gatecode.go (100.0%)</option>
+				<option value="file3">github.com/jakenichols2719/gate/pkg/gatecode/gatecode.go (100.0%)</option>
 				
-				<option value="file4">auth/pkg/gatekey/gatekey.go (100.0%)</option>
+				<option value="file4">github.com/jakenichols2719/gate/pkg/gatekey/gatekey.go (100.0%)</option>
 				
-				<option value="file5">auth/pkg/mail/authmail.go (100.0%)</option>
+				<option value="file5">github.com/jakenichols2719/gate/pkg/mail/mail.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -79,7 +79,7 @@
 		</div>
 		<div id="content">
 		
-		<pre class="file" id="file0" style="display: none">// Package credentials handles the authentication of users using username-password pairs
+		<pre class="file" id="file0" style="display: none">// Package credentials handles the authentication of users using username-password pairs.
 // Each user is stored as a userEntry in a local database. The database columns are defined
 // by the userEntry struct, so they appear as seen below:
 //   +----+-------+----------+---------------+------+---------------+-------------+
@@ -767,30 +767,55 @@ type Host struct {
         Sender   string
 }
 
-// Generate a PlainAuth to use with smtp.SendMail using host info
-func (h Host) plainAuth() smtp.Auth <span class="cov8" title="1">{
-        return smtp.PlainAuth("", h.Username, h.Password, h.Host)
+// Generate an smtp.PlainAuth based on a Host object.
+//
+// Input:
+//   - host Host: Filled host data
+// Output:
+//   - smtp.Auth: Used in smtp.SendMail to authenticate with the SMTP provider.
+func (host Host) plainAuth() smtp.Auth <span class="cov8" title="1">{
+        return smtp.PlainAuth("", host.Username, host.Password, host.Host)
 }</span>
 
-// Generate an address for smtp.SendMail
-func (h Host) address() string <span class="cov8" title="1">{
-        return fmt.Sprintf("%s:%d", h.Host, h.Port)
+// Generate a string address for contacting the SMTP host.
+//
+// Input:
+//   - host Host: Filled host data
+// Output:
+//   - string: SMTP host address
+func (host Host) address() string <span class="cov8" title="1">{
+        return fmt.Sprintf("%s:%d", host.Host, host.Port)
 }</span>
 
-// Generate a new authentication message given a target email and authentication code.
-func NewAuthMessage(sendTo string, authCode string) []byte <span class="cov8" title="1">{
+// Generate a new authentication message given a target email and a gate code.
+//
+// Input:
+//   - sendTo string: Email to send the code to
+//   - code string: Authentication code
+// Output:
+//   - []byte: Properly formatted message for sending through smtp.
+func NewAuthMessage(sendTo string, code string) []byte <span class="cov8" title="1">{
         msg := fmt.Sprintf(
                 "To: %s\r\n"+
                         "Subject: Authentication Code\r\n"+
                         "\r\n"+
                         "Your authentication code is %s.\n"+
-                        "This code will expire in 1 minute.\r\n",
-                sendTo, authCode,
+                        "This code will expire in 5 minutes.\r\n",
+                sendTo, code,
         )
         return []byte(msg)
 }</span>
 
-// Use smtp to send a message through the target SES host
+// Send a message from a Host to an email address.
+//
+// Input:
+//   - sendFrom Host: SMTP host information
+//   - sendTo string: Target email address
+//   - msg []byte: Message to send. Use NewAuthMessage() to generate this.
+// Output:
+//   - error: Any error that occurs when sending mail. This only includes failure to *access* the SMTP server,
+//   or invalid credentials; if all configuration is correct but the email fails to go through or sendTo is not
+//   a valid address, no error will be returned.
 func SendMessage(sendFrom Host, sendTo string, msg []byte) error <span class="cov8" title="1">{
         auth := sendFrom.plainAuth()
         target := []string{sendTo}

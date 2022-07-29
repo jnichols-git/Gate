@@ -1,0 +1,39 @@
+version: "3.7"
+
+services:
+  gate:
+    image: jakenichols2719/gate
+    ports:
+      - 2719:2719
+    volumes:
+      - gate-db:/gate-src/dat/database
+    environment:
+      - init-admin-email=admin@jakenichols.dev
+      - init-admin-username=jakenichols2719
+    secrets:
+      - gate-ssl-key
+      - gate-ssl-crt
+      - gate-smtp-username
+      - gate-smtp-password
+      - gate-admin-email
+      - gate-admin-username
+      - gate-admin-password
+
+secrets:
+  gate-ssl-key:
+    external: true
+  gate-ssl-crt:
+    external: true
+  gate-smtp-username:
+    external: true
+  gate-smtp-password:
+    external: true
+  gate-admin-email:
+    external: true
+  gate-admin-username:
+    external: true
+  gate-admin-password:
+    external: true
+
+volumes:
+  gate-db:

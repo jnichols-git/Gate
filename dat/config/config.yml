@@ -1,17 +1,13 @@
 # Server configuration
 # pkg/authserver uses this to build its authentication server
-Domain: localhost
-Port: 8080
-SMTPHost:
-  ENV_Username: SMTP_USERNAME # Environment variable for SMTP username
-  ENV_Password: SMTP_PASSWORD # Environment variable for SMTP password
+Domain: jakenichols.dev
+Address: "0.0.0.0"
+Port: 2719
+SMTP:
   Host: email-smtp.us-east-2.amazonaws.com # SES provider
   Port: 587 # SMTP port; see your provider's settings
   Sender: jnichols2719@protonmail.com # Emails sent from this address
   TestEmail: success@simulator.amazonses.com # Test email to send to
-Database:
-  Path: ./dat/database/auth.db # Path to database file
-JWT:
-  ENV_TokenSecret: JWT_SIGNING_SECRET # Environment variable where the secret is stored. ALL PASSWORDS INVALID IF THE *USED* VALUE CHANGES
+GateKey:
   UserValidTime: 1440 # Valid time for tokens for regular user authentication, in minutes
   AdminValidTime: 30 # Valid time for tokens for admin dashboard, in minutes

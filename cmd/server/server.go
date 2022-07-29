@@ -17,7 +17,10 @@ func main() {
 		panic(err)
 	}
 	srv := server.NewServer(cfg)
-	srv.Start()
+	err = srv.Start()
+	if err != nil {
+		panic(err)
+	}
 	// Sleep for 5 minutes for testing time
 	time.Sleep(time.Minute * 30)
 	fmt.Println("Stopping server")
