@@ -12,7 +12,7 @@ var secret []byte = []byte("test secret")
 func main() {
 	// Create and start server
 	cfg := server.NewConfig()
-	err := cfg.ReadConfig("./dat/config/config.yml")
+	err := cfg.ReadConfig("gate-config.yml")
 	if err != nil {
 		panic(err)
 	}

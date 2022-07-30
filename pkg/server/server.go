@@ -2,15 +2,14 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/mail"
-	"os"
 	"sync"
 	"time"
 
@@ -331,16 +330,13 @@ func (s *AuthServer) Start() error {
 	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
 	// Open database
 	credentials.OpenDB("./dat/database/auth.db")
-	// Check entries. Count as first run if empty; otherwise, attempt to log in as admin. Admin credentials must be provided to run Gate.
+	// Gate will initialize if there's 0 entries in the database.
 	if credentials.Entries() == 0 {
 		Log("Welcome to Gate. Your database is empty; your provided admin credentials will be used to create the admin account.")
-		var password string
-		Log("Your password is below. It will never be output again--save it somewhere secure.")
-		pwd := make([]byte, 32)
-		rand.Read(pwd[:])
-		password = base64.RawURLEncoding.EncodeToString(pwd)
-		fmt.Println(password)
-		err := credentials.RegisterUser(s.Config.Admin.Email, s.Config.Admin.Username, password, map[string]bool{"admin": true})
+		if len(s.Config.Admin.Password) < 10 {
+			Log("Admin passwords must be at least 10 characters long.")
+		}
+		err := credentials.RegisterUser(s.Config.Admin.Email, s.Config.Admin.Username, s.Config.Admin.Password, map[string]bool{"admin": true})
 		if err != nil {
 			return err
 		}
@@ -353,17 +349,14 @@ func (s *AuthServer) Start() error {
 		if err != nil {
 			return err
 		}
-		Log("Gate will now restart. Please set the gate-admin-password secret to log in.")
-		os.Exit(0)
+	}
+	username, password := s.Config.Admin.Username, s.Config.Admin.Password
+	if valid, user, err := credentials.ValidateUserCred(username, password); valid && user.Permissions["admin"] {
+		Log("Logged in as admin user '%s'", username)
+	} else if err != nil {
+		return err
 	} else {
-		username, password := s.Config.Admin.Username, s.Config.Admin.Password
-		if valid, user, err := credentials.ValidateUserCred(username, password); valid && user.Permissions["admin"] {
-			Log("Logged in as admin user '%s'", username)
-		} else if err != nil {
-			return err
-		} else {
-			return fmt.Errorf("Couldn't start server with admin credentials for unknown reason.")
-		}
+		return fmt.Errorf("Couldn't start server with admin credentials for unknown reason.")
 	}
 	// Add handlers
 	http.HandleFunc("/register", s.handleCredRegiRequest)
@@ -378,7 +371,10 @@ func (s *AuthServer) Start() error {
 	// fulladdr := fmt.Sprintf("%s:%d", s.Config.Domain, s.Config.Port)
 	crt := "/run/secrets/gate-ssl-crt"
 	key := "/run/secrets/gate-ssl-key"
-	fmt.Printf("%s, %s\n", crt, key)
+	if s.Config.Local {
+		crt = s.Config.SSLCrtFile
+		key = s.Config.SSLKeyFile
+	}
 	// Fill out fields for server that aren't created by default
 	//fmt.Println(s.Config.Address)
 	s.srv = &http.Server{

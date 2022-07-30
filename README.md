@@ -33,22 +33,77 @@ You'll need a few components to install Gate on your domain.
 
 Follow these steps to get started!
 
-1. Configure Gate in your YAML file used for swarm deployment. This project uses `docker-compose.yml`. Required settings:
-    - ports: Gate listens on port 2719. If your machine can be directly accessed at port 443, you should map 443:2719. If you're behind a network device,
-    forward port 443 to port 2719 on your device, and map 2719:2719 in your file.
-    - volumes: Should have a default volume mapping to directory /gate-src/dat/database.
-    - secrets: The following secrets should be configured as external and set before deploying the gate service.
-        - gate-ssl-key, gate-ssl-crt: Path to the key and cert file for your domain on your local machine.
-        - gate-smtp-username, gate-smtp-password: Credentials for your SMTP server
-        - gate-admin-email, gate-admin-username, gate-admin-password: Credentials for Gate. A server MUST be run using admin credentials. If none exist, an account will be created using email/username, printing a randomly-generated password and API key out to the terminal before exiting.
-2. Initialize swarm using `docker swarm init`.
-3. Initialize secrets for Gate.
-4. Use `docker stack deploy -c [compose file] [stack name]` to start your application.
+#### Setup
+
+1. Create `docker-compose.yml`:
+```
+services:
+  gate:
+    image: jakenichols2719/gate
+    ports:
+      - 2719:2719
+    volumes:
+      - gate-db:/gate-src/dat/database
+    secrets:
+      - gate-ssl-key
+      - gate-ssl-crt
+      - gate-smtp-username
+      - gate-smtp-password
+      - gate-admin-email
+      - gate-admin-username
+      - gate-admin-password
+
+secrets:
+  gate-ssl-key:
+    external: true
+  gate-ssl-crt:
+    external: true
+  gate-smtp-username:
+    external: true
+  gate-smtp-password:
+    external: true
+  gate-admin-email:
+    external: true
+  gate-admin-username:
+    external: true
+  gate-admin-password:
+    external: true
+
+volumes:
+  gate-db:
+```
+2. Create `gate-config.yml`, and configure the settings based on your providers and preferences:
+```
+Domain: website.com # Website domain. Used to find SSL certificates.
+Address: "0.0.0.0" # IP address to listen on. Don't change this if you don't know what you're doing.
+Port: 2719 # Port to listen on.
+Local: false # Local run. Setting to true overrides domain/address to localhost and uses environment variables instead of docker secrets.
+SMTP:
+  Host: some-smtp-provider # SES provider
+  Port: 587 # SMTP port; see your provider's settings
+  Sender: notifications@website.com # Emails sent from this address
+  TestEmail: testemail@website.com # Test email to send to
+GateKey:
+  UserValidTime: 1440 # Valid time for tokens for regular user authentication, in minutes
+  AdminValidTime: 30 # Valid time for tokens for admin dashboard, in minutes
+```
+
+#### Run
+1. Initialize swarm using `docker swarm init`.
+2. Initialize secrets for Gate.
+    - `gate-ssl-[key/crt]`: SSL key and certificate file paths.
+    - `gate-smtp-[username/password]`: SMTP credentials.
+    - `gate-admin-[email/username/password]`: Admin credentials.
+3. Use `docker stack deploy -c [compose file] [stack name]` to start your application.
+    - If you haven't run Gate before, the provided admin credentials will be used to create an admin account, and the terminal will output your API key. Make sure
+    you use a secure password, and that you save that key. It will not be output anywhere else.
 
 Your dashboard should now be accessible at `gate.domain/dashboard`, and you can make api calls through `gate.domain`.
 
 
 ### FOR DEVELOPERS
+
+#### Setup
 
 1. Gate installations have been tested on an Ubuntu machine through WSL. It should function, following these steps, in any Linux environment.
 2. Install Go through `sudo apt-get install golang-go`
@@ -56,12 +111,19 @@ Your dashboard should now be accessible at `gate.domain/dashboard`, and you can 
 4. Clone your fork of the GitHub repository to a folder of your choice
 5. Navigate to the base directory
 6. Generate localhost certs through certgen by calling `go run ./cmd/certgen/certgen.go (country) (state) (locality) (organization) (organizational unit) localhost`
+7. Set `Local` in `dat/config/config.yml` to `true` to override docker-based settings and listen on `localhost`.
+8. Set environment variables.
+    - `GATE_SSL_[KEY/CRT]`: SSL key and certificate file paths.
+    - `GATE_SMTP_[USERNAME/PASSWORD]`: SMTP credentials.
+    - `GATE_ADMIN_[EMAIL/USERNAME/PASSWORD]`: Admin credentials.
 
-You should be set up to contribute from there. You can run `make server-run` to start a server and begin configuring your `localhost` testing environment.
+#### Run
+
+Use `make server-run` to start a server. You can connect to it using `https://localhost:2719`.
 
 ## Configuration
 
-Once basic settings have been established, Gate can be configured from the dashboard at `https://gate.domain/dashboard`.
+Gate can be confgured through `gate-config.yml` or through the dashboard at `https://gate.domain/dashboard` (or `https://localhost/dashboard` if Local), once it's running.
 
 ## Project Goals
 
@@ -74,7 +136,7 @@ goals and non-goals may change in response to community feedback. These goals ar
 to attain even in the event of a security breach.
 2. Setting up and running a Gate server should be simple and intuitive.
 3. Servers should be fully functional on low-spec, low-cost servers for applications with lightweight needs. The majority of performance
-overhead should be in the quanitity and frequency of validation needed, not in the server's basic functionality.
+overhead should be in the quantity and frequency of validation needed, not in the server's basic functionality.
 4. Gate servers should be stable, handle errors and improper input well, and provide strong communication back to the application regarding
 those errors.
 

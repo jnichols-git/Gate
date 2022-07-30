@@ -19,7 +19,7 @@ func main() {
 	// Certificate request
 	csrOpts := fmt.Sprintf(`/C=%s/ST=%s/L=%s/O=%s/OU=%s/CN=%s`, C, ST, L, O, OU, CN)
 	csrArgs := []string{
-		"req", "-nodes", "-newkey", "rsa:2048", "-keyout", "./dat/cert/default/" + CN + ".key", "-out", "./cert/" + CN + ".csr", `-subj`, csrOpts,
+		"req", "-nodes", "-newkey", "rsa:2048", "-keyout", "./dat/cert/" + CN + ".key", "-out", "./dat/cert/" + CN + ".csr", `-subj`, csrOpts,
 	}
 	csrCmd := exec.Command(ssl, csrArgs...)
 	if output, err := csrCmd.CombinedOutput(); err != nil {
@@ -27,7 +27,7 @@ func main() {
 	}
 	// Certificate sign
 	crtArgs := []string{
-		"x509", "-req", "-days", fmt.Sprint(7), "-in", "./dat/cert/default/" + CN + ".csr", "-signkey", "./dat/cert/default/" + CN + ".key", "-out", "./cert/" + CN + ".crt",
+		"x509", "-req", "-days", fmt.Sprint(7), "-in", "./dat/cert/" + CN + ".csr", "-signkey", "./dat/cert/" + CN + ".key", "-out", "./dat/cert/" + CN + ".crt",
 	}
 	crtCmd := exec.Command(ssl, crtArgs...)
 	if output, err := crtCmd.CombinedOutput(); err != nil {

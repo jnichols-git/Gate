@@ -18,8 +18,7 @@ bin/*
 # vendor/
 
 # SSL certificates (ignore default/user)
-dat/cert/default/*
-dat/cert/user/*
+dat/cert*
 
 # Logs
 dat/log/*

@@ -1,10 +1,11 @@
 package server
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net"
+	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -34,6 +35,7 @@ type AuthServerConfig struct {
 	Domain     string         `yaml:"Domain"`
 	Address    string         `yaml:"Address"`
 	Port       int            `yaml:"Port"`
+	Local      bool           `yaml:"Local"`
 	SSLKeyFile string         `yaml:"-"`
 	SSLCrtFile string         `yaml:"-"`
 	Admin      Config_Admin   `yaml:"-"`
@@ -66,9 +68,7 @@ func getSecret(name string, fileOnly bool) (string, error) {
 	return strings.TrimSpace(string(val)), nil
 }
 
-// Read environment variables contained in the AuthServerConfig.
-// Any given AuthServerConfig object has a series of variables naming environment values set in the OS, to keep them private.
-// This function takes those names and loads them into the config as their non-_Secret counterparts.
+// Read secrets needed for AuthServerConfig from docker swarm secrets.
 //
 // Calling:
 //   - cfg *AuthServerConfig: Config to read environment values into.
@@ -99,7 +99,7 @@ func (cfg *AuthServerConfig) readSecrets() error {
 	// Generate a random 32-byte secret
 	secret := make([]byte, 32)
 	rand.Read(secret[:])
-	cfg.GateKey.GatekeySecret = string(secret)
+	cfg.GateKey.GatekeySecret = base64.RawURLEncoding.EncodeToString(secret)
 	// Get SSL certs
 	cfg.SSLKeyFile, err = getSecret("gate-ssl-key", true)
 	cfg.SSLCrtFile, err = getSecret("gate-ssl-crt", true)
@@ -107,19 +107,46 @@ func (cfg *AuthServerConfig) readSecrets() error {
 	return nil
 }
 
-// Use net.Dial to get the outbound IP address.
-//
-// Output:
-//   - string: string IP address for outbound connections
-//   - error: error, if one occurs
-func getOutboundAddress() (string, error) {
-	conn, err := net.Dial("udp", "8.8.8.8:20")
-	if err != nil {
-		return "", err
+// Imitate the behavior of readSecrets using environment variables.
+// Used for local running of Gate outside of Docker.
+func (cfg *AuthServerConfig) readEnvironment() error {
+	var ok bool
+	// Admin
+	cfg.Admin.Email, ok = os.LookupEnv("GATE_ADMIN_EMAIL")
+	if !ok {
+		return fmt.Errorf("Couldn't find environment variable %s.", "GATE_ADMIN_EMAIL")
 	}
-	defer conn.Close()
-	localAddr := conn.LocalAddr().String()
-	return localAddr, nil
+	cfg.Admin.Username, ok = os.LookupEnv("GATE_ADMIN_USERNAME")
+	if !ok {
+		return fmt.Errorf("Couldn't find environment variable %s.", "GATE_ADMIN_USERNAME")
+	}
+	cfg.Admin.Password, ok = os.LookupEnv("GATE_ADMIN_PASSWORD")
+	if !ok {
+		return fmt.Errorf("Couldn't find environment variable %s.", "GATE_ADMIN_PASSWORD")
+	}
+	// SMTP
+	cfg.SMTPHost.Username, ok = os.LookupEnv("GATE_SMTP_USERNAME")
+	if !ok {
+		return fmt.Errorf("Couldn't find environment variable %s.", "GATE_SMTP_USERNAME")
+	}
+	cfg.SMTPHost.Password, ok = os.LookupEnv("GATE_SMTP_PASSWORD")
+	if !ok {
+		return fmt.Errorf("Couldn't find environment variable %s.", "GATE_SMTP_PASSWORD")
+	}
+	// Gatekey
+	secret := make([]byte, 32)
+	rand.Read(secret[:])
+	cfg.GateKey.GatekeySecret = base64.RawURLEncoding.EncodeToString(secret)
+	// SSL certs
+	cfg.SSLKeyFile, ok = os.LookupEnv("GATE_SSL_KEY")
+	if !ok {
+		return fmt.Errorf("Couldn't find environment variable %s.", "GATE_SSL_KEY")
+	}
+	cfg.SSLCrtFile, ok = os.LookupEnv("GATE_SSL_CRT")
+	if !ok {
+		return fmt.Errorf("Couldn't find environment variable %s.", "GATE_SSL_CRT")
+	}
+	return nil
 }
 
 // Read a configuration file into the calling *AuthServerConfig.
@@ -137,19 +164,17 @@ func (cfg *AuthServerConfig) ReadConfig(fn string) error {
 	if err != nil {
 		return err
 	}
-	err = cfg.readSecrets()
+	if cfg.Local {
+		err = cfg.readEnvironment()
+	} else {
+		err = cfg.readSecrets()
+	}
 	if err != nil {
 		return err
 	}
-	// Interpret address
-	if cfg.Address == "outbound" {
-		addr, err := getOutboundAddress()
-		if err != nil {
-			return err
-		}
-		cfg.Address = addr
-	} else {
-		cfg.Address = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
+	if cfg.Local {
+		cfg.Address = "localhost"
 	}
+	cfg.Address = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 	return nil
 }

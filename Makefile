@@ -8,7 +8,7 @@ test:
 	go tool cover -html=$(tpath)/coverage.profile -o $(tpath)/coverage.html
 
 server:
-	go build ./cmd/server/server.go
+	go build -o server ./cmd/server/main.go
 	mv ./server ./bin
 
 server-run:

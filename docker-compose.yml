@@ -7,9 +7,6 @@ services:
       - 2719:2719
     volumes:
       - gate-db:/gate-src/dat/database
-    environment:
-      - init-admin-email=admin@jakenichols.dev
-      - init-admin-username=jakenichols2719
     secrets:
       - gate-ssl-key
       - gate-ssl-crt
