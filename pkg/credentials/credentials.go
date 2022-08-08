@@ -186,7 +186,10 @@ func RegisterUser(email, username string, password string, permissions map[strin
 		HashFunc:     "sha512",
 		Permissions:  string(perm),
 	}
-	addUser(entry)
+	err = addUser(entry)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

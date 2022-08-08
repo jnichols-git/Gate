@@ -1,0 +1,183 @@
+# BAREMETAL CONFIG
+# This is the kubernetes manifest for a baremetal installation of Gate.
+# gate-db-sc is the storage class for the gate database. retains data across runs.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gate-db-sc
+provisioner: docker.io/hostpath
+parameters:
+  type: gp2
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+mountOptions:
+  - debug
+volumeBindingMode: Immediate
+
+---
+# gate-db volume claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: gate-db
+  name: gate-db
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Mi
+  storageClassName: gate-db-sc
+status: {}
+
+---
+# gate-db internal networking service
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.22.0 (955b78124)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: gate
+  name: gate-service
+spec:
+  ports:
+    - name: https
+      protocol: TCP
+      port: 443
+      targetPort: 2719
+  selector:
+    io.kompose.service: gate
+status:
+  loadBalancer: {}
+
+---
+# Ingress; connect to gate service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gate-ingress
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+      - localhost
+      secretName: localhost-tls
+  rules:
+  - host: localhost
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gate-service
+            port:
+              number: 443
+
+---
+# metallb config; set addresses to range that connects to the local machine
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: my-ip-space
+      protocol: layer2
+      addresses:
+      - 192.168.0.249-192.168.0.249
+
+---
+# IPAddressPool for metallb
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: first-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 192.168.0.249-192.168.0.249
+
+---
+# Advertise the availability of all IPAddressPools to kubernetes through metallb
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: example
+  namespace: metallb-system
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.22.0 (955b78124)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: gate
+  name: gate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: gate
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: gate
+    spec:
+      containers:
+        - image: jakenichols2719/gate
+          name: gate
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 2719
+          resources: {}
+          volumeMounts:
+            - name: secrets
+              mountPath: /secrets
+            - name: gate-db
+              mountPath: /gate-src/dat/database
+      restartPolicy: Always
+      volumes:
+        - name: secrets
+          projected:
+            sources:
+              - secret:
+                  name: gate-admin
+              - secret:
+                  name: gate-smtp
+        - name: secret-gate-smtp
+          secret:
+            secretName: gate-smtp
+            items:
+              - key: SMTP_USERNAME
+                path: SMTP_USERNAME
+              - key: SMTP_PASSWORD
+                path: SMTP_PASSWORD
+        - name: secret-gate-admin
+          secret:
+            secretName: gate-admin
+            items:
+              - key: ADMIN_EMAIL
+                path: ADMIN_EMAIL
+              - key: ADMIN_USERNAME
+                path: ADMIN_USERNAME
+              - key: ADMIN_PASSWORD
+                path: ADMIN_PASSWORD
+        - name: gate-db
+          persistentVolumeClaim:
+            claimName: gate-db
+status: {}

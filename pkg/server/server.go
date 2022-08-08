@@ -326,6 +326,7 @@ func (s *AuthServer) HandleKeyAuthRequest(w http.ResponseWriter, req *http.Reque
 //   - s *AuthServer: Server to run. Should be initialized with NewServer before calling Start.
 func (s *AuthServer) Start() error {
 	// Open log
+	fmt.Println(s.Config.Admin.Email, s.Config.Admin.Username, s.Config.Admin.Password)
 	OpenLog()
 	fmt.Printf("Starting server. Log file located at %s\n", LogFile)
 	// Open database
@@ -369,12 +370,14 @@ func (s *AuthServer) Start() error {
 	createDashboard(s).addEndpoints()
 	// Generate address
 	// fulladdr := fmt.Sprintf("%s:%d", s.Config.Domain, s.Config.Port)
-	crt := "/run/secrets/gate-ssl-crt"
-	key := "/run/secrets/gate-ssl-key"
-	if s.Config.Local {
-		crt = s.Config.SSLCrtFile
-		key = s.Config.SSLKeyFile
-	}
+	/*
+		crt := "/secrets/SSL_CRT"
+		key := "/secrets/SSL_KEY"
+		if s.Config.Local {
+			crt = s.Config.SSLCrtFile
+			key = s.Config.SSLKeyFile
+		}
+	*/
 	// Fill out fields for server that aren't created by default
 	//fmt.Println(s.Config.Address)
 	s.srv = &http.Server{
@@ -387,7 +390,7 @@ func (s *AuthServer) Start() error {
 	}
 	go func() {
 		s.wg.Add(1)
-		err := s.srv.ListenAndServeTLS(crt, key)
+		err := s.srv.ListenAndServe()
 		switch err {
 		case http.ErrServerClosed:
 			{

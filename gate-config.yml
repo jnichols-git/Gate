@@ -4,7 +4,7 @@
 Domain: jakenichols.dev # Website domain. Used to find SSL certificates.
 Address: "0.0.0.0" # IP address to listen on. Don't change this if you don't know what you're doing.
 Port: 2719 # Port to listen on.
-Local: true # Local run. Setting to true overrides domain/address to localhost and uses environment variables instead of docker secrets.
+Local: false # Local run. Setting to true overrides domain/address to localhost and uses environment variables instead of docker secrets.
 SMTP:
   Host: email-smtp.us-east-2.amazonaws.com # SES provider
   Port: 587 # SMTP port; see your provider's settings

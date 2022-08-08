@@ -14,3 +14,19 @@ server:
 server-run:
 	make server
 	./bin/server
+
+docker-image:
+	docker build -t jakenichols2719/gate .
+
+kube-apply:
+	kubectl apply -f kubernetes/
+
+kube-expose:
+	kubectl expose deployment gate --type=LoadBalancer --name=gate-service --port=443
+
+kube-restart:
+	kubectl rollout restart deployment/gate
+
+kube-stop:
+	kubectl delete deployment gate
+	kubectl delete service gate-service

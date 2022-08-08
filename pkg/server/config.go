@@ -57,7 +57,7 @@ func NewConfig() *AuthServerConfig {
 //   - string: Secret value
 //   - error: If the secret file can't be read, returns this.
 func getSecret(name string, fileOnly bool) (string, error) {
-	path := fmt.Sprintf("/run/secrets/%s", name)
+	path := fmt.Sprintf("/secrets/%s", name)
 	if fileOnly {
 		return path, nil
 	}
@@ -77,22 +77,22 @@ func getSecret(name string, fileOnly bool) (string, error) {
 func (cfg *AuthServerConfig) readSecrets() error {
 	var err error
 	// Admin
-	cfg.Admin.Email, err = getSecret("gate-admin-email", false)
+	cfg.Admin.Email, err = getSecret("ADMIN_EMAIL", false)
 	if err != nil {
 		return err
 	}
-	cfg.Admin.Username, err = getSecret("gate-admin-username", false)
+	cfg.Admin.Username, err = getSecret("ADMIN_USERNAME", false)
 	if err != nil {
 		return err
 	}
 	// This one can actually just fall through if it doesn't succeed. server.go handles this failure case.
-	cfg.Admin.Password, _ = getSecret("gate-admin-password", false)
+	cfg.Admin.Password, _ = getSecret("ADMIN_PASSWORD", false)
 	// SMTP
-	cfg.SMTPHost.Username, err = getSecret("gate-smtp-username", false)
+	cfg.SMTPHost.Username, err = getSecret("SMTP_USERNAME", false)
 	if err != nil {
 		return err
 	}
-	cfg.SMTPHost.Password, err = getSecret("gate-smtp-password", false)
+	cfg.SMTPHost.Password, err = getSecret("SMTP_PASSWORD", false)
 	if err != nil {
 		return err
 	}

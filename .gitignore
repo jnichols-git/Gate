@@ -23,3 +23,5 @@ dat/cert*
 # Logs
 dat/log/*
 dat/database/*
+
+kube_cfg_local.yaml

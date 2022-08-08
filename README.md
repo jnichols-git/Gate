@@ -2,7 +2,8 @@
 
 Go-based authentication server using SMTP or credentials for initial authentication, and JWTs for session verification,
 hosted for you and by you. This server is lightweight and highly self-contained, having only 1 external library dependency
-in [gorm](https://github.com/go-gorm/gorm), a widely-used and maintained library for database management.
+in [gorm](https://github.com/go-gorm/gorm), a widely-used and maintained library for database management. This is extended
+to 2 external libraries if running a baremetal installation, which uses MetalLB to allow external connections.
 
 Gate is currently in alpha. The author ([jnichols2719](https://github.com/jakenichols2719)) started this project as a 
 means to practice Go and learn about security management methods, and as with any project created for practice and education, 
@@ -24,8 +25,8 @@ Gate is built to run using the following tools:
 
 You'll need a few components to install Gate on your domain.
 
-- Working installation of Docker and docker-compose. Gate operates as a docker swarm service.
-- Machine with a public IP address.
+- Working installation of Docker/Kubernetes.
+- Machine that can be reached at port 443 through a public IP address.
 - Registered domain whose SSL certificate is either wildcard or can have a subdomain added.
     - Support incoming for non-subdomain operation.
     - You should direct `gate.domain` to the machine that will be running on.
@@ -35,70 +36,20 @@ Follow these steps to get started!
 
 #### Setup
 
-1. Create `docker-compose.yml`:
-```
-services:
-  gate:
-    image: jakenichols2719/gate
-    ports:
-      - 2719:2719
-    volumes:
-      - gate-db:/gate-src/dat/database
-    secrets:
-      - gate-ssl-key
-      - gate-ssl-crt
-      - gate-smtp-username
-      - gate-smtp-password
-      - gate-admin-email
-      - gate-admin-username
-      - gate-admin-password
+1. Set secrets for Gate
+  - kubectl create secret generic gate-admin --from-literal=ADMIN_EMAIL=(email) --from-literal=ADMIN_USERNAME=(username) --from-literal=ADMIN_PASSWORD=(password)
+  - kubectl create secret generic gate-smtp --from-literal=SMTP_USERNAME=(username) --from-literal=SMTP_PASSOWRD=(password)
+  - kubectl create secret tls (domain)-tls --cert=(path to cert) --key=(path to key)
+2. Create Kubernetes config
+  - Download kubernetes/baremetal.yaml
+  - Under Ingress, update the `localhost` entry to match your domain (including subdomain, so `jakenichols.dev` becomes `gate.jakenichols.dev`)
+3. Run
+  - kubectl apply baremetal.yaml
+  - kubectl get pods
+  - kubectl logs (gate pod name)
+    - Your API key will be output in the logs.
 
-secrets:
-  gate-ssl-key:
-    external: true
-  gate-ssl-crt:
-    external: true
-  gate-smtp-username:
-    external: true
-  gate-smtp-password:
-    external: true
-  gate-admin-email:
-    external: true
-  gate-admin-username:
-    external: true
-  gate-admin-password:
-    external: true
-
-volumes:
-  gate-db:
-```
-2. Create `gate-config.yml`, and configure the settings based on your providers and preferences:
-```
-Domain: website.com # Website domain. Used to find SSL certificates.
-Address: "0.0.0.0" # IP address to listen on. Don't change this if you don't know what you're doing.
-Port: 2719 # Port to listen on.
-Local: false # Local run. Setting to true overrides domain/address to localhost and uses environment variables instead of docker secrets.
-SMTP:
-  Host: some-smtp-provider # SES provider
-  Port: 587 # SMTP port; see your provider's settings
-  Sender: notifications@website.com # Emails sent from this address
-  TestEmail: testemail@website.com # Test email to send to
-GateKey:
-  UserValidTime: 1440 # Valid time for tokens for regular user authentication, in minutes
-  AdminValidTime: 30 # Valid time for tokens for admin dashboard, in minutes
-```
-
-#### Run
-1. Initialize swarm using `docker swarm init`.
-2. Initialize secrets for Gate.
-    - `gate-ssl-[key/crt]`: SSL key and certificate file paths.
-    - `gate-smtp-[username/password]`: SMTP credentials.
-    - `gate-admin-[email/username/password]`: Admin credentials.
-3. Use `docker stack deploy -c [compose file] [stack name]` to start your application.
-    - If you haven't run Gate before, the provided admin credentials will be used to create an admin account, and the terminal will output your API key. Make sure
-    you use a secure password, and that you save that key. It will not be output anywhere else.
-
-Your dashboard should now be accessible at `gate.domain/dashboard`, and you can make api calls through `gate.domain`.
+You are now good to go! You can access the dashboard at `https://gate.domain/dashboard` and the API by sending requests to `https://gate.domain`.
 
 
 ### FOR DEVELOPERS

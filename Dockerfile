@@ -15,6 +15,7 @@ RUN openssl s_client -showcerts -connect proxy.golang.org:443 </dev/null 2>/dev/
 RUN update-ca-certificates
 # Get go.mod dependencies
 RUN go mod download
+RUN make server
 # RUN go run ./cmd/certgen/certgen.go US Colorado Boulder DefaultOrg DefaultOrgUnit jakenichols.dev
-CMD ["make", "server-run"]
+CMD ["./bin/server"]
 EXPOSE 2719
